@@ -7,6 +7,10 @@
 </head>
 <body>
   <button id="newParticipantBtn" class="top-new">New Participant</button>
+  <button id="themeBtn" class="top-theme-btn" aria-pressed="false" title="Toggle dark mode">🌙</button>
+  <label class="top-theme" style="margin-left:0.5rem; display:none;">
+    <input type="checkbox" id="themeToggle"> Dark mode
+  </label>
   <h1>Shot Timer</h1>
 
   <!-- -------------------------------------------------------------
@@ -202,6 +206,40 @@
           area.classList.remove('collapsed'); area.classList.remove('hidden');
           btn.setAttribute('aria-expanded', 'true'); btn.textContent = 'Hide setup ▾';
         }
+      });
+    }());
+  </script>
+  <!-- Lightweight theme initializer: ensures theme toggle works even if module JS hasn't run yet -->
+  <script>
+    (function () {
+      const THEME_KEY = 'shot-timer-theme';
+      const cb = document.getElementById('themeToggle');
+      const btn = document.getElementById('themeBtn');
+      function applyTheme(t) {
+        if (t === 'dark') {
+          document.documentElement.setAttribute('data-theme', 'dark');
+          if (btn) btn.setAttribute('aria-pressed', 'true');
+        } else {
+          document.documentElement.removeAttribute('data-theme');
+          if (btn) btn.setAttribute('aria-pressed', 'false');
+        }
+        if (cb) cb.checked = (t === 'dark');
+      }
+      try {
+        const stored = localStorage.getItem(THEME_KEY);
+        if (stored) applyTheme(stored);
+        else if (window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches) applyTheme('dark');
+      } catch (e) { /* ignore storage errors */ }
+      if (cb) cb.addEventListener('change', function (ev) {
+        const t = ev.target.checked ? 'dark' : 'light';
+        try { localStorage.setItem(THEME_KEY, t); } catch (e) {}
+        applyTheme(t);
+      });
+      if (btn) btn.addEventListener('click', function () {
+        const cur = document.documentElement.getAttribute('data-theme') === 'dark' ? 'dark' : 'light';
+        const next = cur === 'dark' ? 'light' : 'dark';
+        try { localStorage.setItem(THEME_KEY, next); } catch (e) {}
+        applyTheme(next);
       });
     }());
   </script>

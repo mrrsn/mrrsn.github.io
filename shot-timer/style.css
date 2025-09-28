@@ -1,12 +1,71 @@
 /* style.css – minimal styling for the new layout */
+/* Theme variables (light defaults) */
+:root {
+  --bg: #fafafa;
+  --text: #222222;
+  --muted: #555555;
+  --panel-bg: #ffffff;
+  --primary: #0066cc;
+  --accent: #28a745;
+  --danger: #dc3545;
+  --table-alt: #f0f0f0;
+  --status-bg: #f3f6ff;
+  --status-text: #0b3b7b;
+  --status-success-bg: #e8f7ec;
+  --status-success-text: #1b6b2b;
+  --status-error-bg: #fff0f0;
+  --status-error-text: #7a0b0b;
+  --button-text: #ffffff;
+}
+
+/* Allow explicit override from JS: html[data-theme="dark"] will force dark variables
+   This takes precedence when the script sets document.documentElement.setAttribute('data-theme','dark') */
+html[data-theme="dark"], :root[data-theme="dark"] {
+  --bg: #0b0b0d;
+  --text: #e8e8e8;
+  --muted: #bdbdbd;
+  --panel-bg: #111214;
+  --primary: #3b82f6;
+  --accent: #10b981;
+  --danger: #ef4444;
+  --table-alt: #161616;
+  --status-bg: #0f1724;
+  --status-text: #cfe8ff;
+  --status-success-bg: #052e10;
+  --status-success-text: #9be6b7;
+  --status-error-bg: #331212;
+  --status-error-text: #ffb4b4;
+  --button-text: #0b0b0d;
+}
+
+/* Respect system preference when no explicit choice made */
+@media (prefers-color-scheme: dark) {
+  :root {
+    --bg: #0b0b0d;
+    --text: #e8e8e8;
+    --muted: #bdbdbd;
+    --panel-bg: #111214;
+    --primary: #3b82f6;
+    --accent: #10b981;
+    --danger: #ef4444;
+    --table-alt: #161616;
+    --status-bg: #0f1724;
+    --status-text: #cfe8ff;
+    --status-success-bg: #052e10;
+    --status-success-text: #9be6b7;
+    --status-error-bg: #331212;
+    --status-error-text: #ffb4b4;
+    --button-text: #0b0b0d;
+  }
+}
 body {
   font-family: -apple-system, BlinkMacSystemFont, "Segoe UI",
                Roboto, Helvetica, Arial, sans-serif;
   margin: 0 auto;
   padding: 1rem;
   max-width: 1100px;
-  background: #fafafa;
-  color: #222;
+  background: var(--bg);
+  color: var(--text);
   -webkit-font-smoothing: antialiased;
 }
 
@@ -40,7 +99,7 @@ label {
 
 .input-hint {
   margin: 0.25rem 0 0.6rem 0;
-  color: #555;
+  color: var(--muted);
   font-size: 0.95rem;
 }
 
@@ -66,15 +125,15 @@ button {
 }
 
 /* Simple colour scheme */
-#detectBtn    { background: #0066cc; color: white; }
-#calibrateBtn { background: #28a745; color: white; }
-#startBtn     { background: #28a745; color: white; }
-#resetBtn     { background: #dc3545; color: white; }
+#detectBtn    { background: var(--primary); color: var(--button-text); }
+#calibrateBtn { background: var(--accent); color: var(--button-text); }
+#startBtn     { background: var(--accent); color: var(--button-text); }
+#resetBtn     { background: var(--danger); color: var(--button-text); }
 
 /* Shots table */
 #shotsPanel {
   margin-top: 2rem;
-  border-top: 1px solid #ddd;
+  border-top: 1px solid rgba(0,0,0,0.08);
   padding-top: 1rem;
   overflow-x: auto; /* allow horizontal scroll on narrow screens */
 }
@@ -87,12 +146,12 @@ button {
 }
 #shotsTable th,
 #shotsTable td {
-  border: 1px solid #ccc;
+  border: 1px solid rgba(0,0,0,0.12);
   padding: 0.4rem 0.6rem;
   text-align: center;
 }
 #shotsTable tbody tr:nth-child(even) {
-  background: #f0f0f0;
+  background: var(--table-alt);
 }
 
 /* When the table has .hide-rms, hide the RMS column (both header and cells) */
@@ -118,13 +177,13 @@ button {
   margin: 1rem 0;
   padding: 0.5rem 0.75rem;
   border-radius: 6px;
-  background: #f3f6ff;
-  color: #0b3b7b;
+  background: var(--status-bg);
+  color: var(--status-text);
   font-weight: 600;
   text-align: center;
 }
-.status.success { background: #e8f7ec; color: #1b6b2b; }
-.status.error   { background: #fff0f0; color: #7a0b0b; }
+.status.success { background: var(--status-success-bg); color: var(--status-success-text); }
+.status.error   { background: var(--status-error-bg); color: var(--status-error-text); }
 .hidden { display: none !important; }
 
 /* Tiny spinner to indicate scanning */
@@ -203,10 +262,10 @@ body :not(h1):not(h2):not(h3):not(h4):not(h5):not(h6) {
 }
 
 #collapsedArea.collapsed { display: none; }
-#collapsedArea { margin: 0.5rem 0 1rem 0; padding: 0.5rem; border: 1px dashed #ddd; background: #fff; }
+#collapsedArea { margin: 0.5rem 0 1rem 0; padding: 0.5rem; border: 1px dashed rgba(0,0,0,0.08); background: var(--panel-bg); color: var(--text); }
 .next-row { text-align: center; margin: 0.5rem 0 1rem 0; }
 
-.course-notes { margin-top: 0.5rem; color: #444; }
+.course-notes { margin-top: 0.5rem; color: var(--muted); }
 
 /* New Participant top button styling */
 .top-new {
@@ -218,6 +277,26 @@ body :not(h1):not(h2):not(h3):not(h4):not(h5):not(h6) {
   color: #fff;
   border-radius: 6px;
 }
+
+.top-theme {
+  display: inline-block;
+  vertical-align: middle;
+  font-weight: 600;
+  margin-left: 0.5rem;
+}
+
+.top-theme-btn {
+  display: inline-block;
+  vertical-align: middle;
+  margin-left: 0.5rem;
+  padding: 0.35rem 0.6rem;
+  font-size: 1rem;
+  background: transparent;
+  border: 1px solid rgba(0,0,0,0.08);
+  border-radius: 6px;
+  cursor: pointer;
+}
+.top-theme-btn[aria-pressed="true"] { background: var(--primary); color: var(--button-text); border-color: transparent; }
 
 /* Buttons layout: stacked on narrow screens, multi-column on wide */
 .buttons {
@@ -267,6 +346,22 @@ body :not(h1):not(h2):not(h3):not(h4):not(h5):not(h6) {
   .top-new { display: block; margin: 0 auto 0.6rem auto; font-size: 1.15rem; padding: 0.7rem 1rem; }
 }
 
+/* Improve readability of the setup area on small screens by forcing dark text
+   but only when not in dark theme (so dark-mode users keep correct contrast). */
+@media (max-width: 600px) {
+  html:not([data-theme="dark"]) #collapsedArea,
+  html:not([data-theme="dark"]) #collapsedArea label,
+  html:not([data-theme="dark"]) #collapsedArea .input-hint,
+  html:not([data-theme="dark"]) #collapsedArea select,
+  html:not([data-theme="dark"]) #collapsedArea input,
+  html:not([data-theme="dark"]) #collapsedArea option,
+  html:not([data-theme="dark"]) #collapsedArea #courseNotes {
+    color: #000 !important;
+  }
+  /* range labels and value spans */
+  html:not([data-theme="dark"]) #collapsedArea span[id$="Value"] { color: #000 !important; }
+}
+
 @media (min-width: 900px) {
   /* On wide screens place New Participant to the right of the title */
   .top-new { float: right; margin-left: 1rem; }
@@ -279,8 +374,9 @@ body :not(h1):not(h2):not(h3):not(h4):not(h5):not(h6) {
 #stageInstructions {
   margin: 1.25rem 0;
   padding: 0.75rem 1rem;
-  border: 1px solid #e0e0e0;
-  background: #ffffff;
+  border: 1px solid rgba(0,0,0,0.08);
+  background: var(--panel-bg);
+  color: var(--text);
 }
 #stageInstructions .stage-instructions-inner {
   text-align: center;
@@ -291,7 +387,7 @@ body :not(h1):not(h2):not(h3):not(h4):not(h5):not(h6) {
 }
 #stageInstructions #stageDetails {
   font-size: 1.25rem;
-  color: #333;
+  color: var(--muted);
 }
 
 /* Heading lines: stage title, rounds/time, yards/position should be prominent */
@@ -303,20 +399,20 @@ body :not(h1):not(h2):not(h3):not(h4):not(h5):not(h6) {
 #stageInstructions #stageRounds {
   font-size: 1.25rem;
   font-weight: 700;
-  color: #222;
+  color: var(--text);
   margin-top: 0.25rem;
 }
 #stageInstructions #stageMeta {
   font-size: 1.25rem;
   font-weight: 700;
-  color: #444;
+  color: var(--muted);
   margin-top: 0.25rem;
 }
 
 /* Details are slightly less prominent */
 #stageInstructions #stageDetails {
   font-size: 1.05rem;
-  color: #222;
+  color: var(--text);
   margin-top: 0.5rem;
 }
 
@@ -324,14 +420,14 @@ body :not(h1):not(h2):not(h3):not(h4):not(h5):not(h6) {
 #stageInstructions .stage-meta {
   font-size: 1.1rem;
   font-weight: 600;
-  color: #444;
+  color: var(--muted);
   margin: 0.25rem 0 0.5rem 0;
 }
 
 /* Make the yards portion slightly larger and accented when present */
 #stageInstructions .yard {
   font-size: 1.4rem;
-  color: #b22;
+  color: var(--danger);
   font-weight: 700;
   margin-right: 0.5rem;
 }

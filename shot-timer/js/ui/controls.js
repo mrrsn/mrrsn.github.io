@@ -133,6 +133,31 @@ export function initControls({ onStart = () => {}, onReset = () => {}, onCalibra
       try { localStorage.setItem(ZOOM_KEY, String(v)); } catch (err) { /* ignore */ }
     });
 
+    // Theme toggle (dark mode) — persist as 'light' or 'dark'
+    const themeToggle = document.getElementById('themeToggle');
+    const THEME_KEY = 'shot-timer-theme';
+    function applyTheme(t) {
+      try {
+        if (t === 'dark') document.documentElement.setAttribute('data-theme', 'dark');
+        else document.documentElement.removeAttribute('data-theme');
+        if (themeToggle) themeToggle.checked = (t === 'dark');
+      } catch (e) { console.warn('applyTheme failed', e); }
+    }
+    try {
+      const storedTheme = localStorage.getItem(THEME_KEY);
+      if (storedTheme) applyTheme(storedTheme);
+      else {
+        // default: respect CSS prefers-color-scheme (already handled by CSS), but set checkbox accordingly
+        const prefersDark = window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches;
+        if (themeToggle) themeToggle.checked = prefersDark;
+      }
+    } catch (e) { /* ignore */ }
+    if (themeToggle) themeToggle.addEventListener('change', e => {
+      const t = e.target.checked ? 'dark' : 'light';
+      applyTheme(t);
+      try { localStorage.setItem(THEME_KEY, t); } catch (err) { /* ignore */ }
+    });
+
     // Speaker select
     const speakerSelect = document.getElementById('speakerSelect');
     if (speakerSelect) speakerSelect.addEventListener('change', async e => { try { await setOutputDevice(e.target.value); setStatus(`Using output device: ${speakerSelect.selectedOptions[0]?.text || e.target.value}`, 'success'); } catch (err) { setStatus('Failed to set output device — this browser may not support setSinkId.', 'error'); } });

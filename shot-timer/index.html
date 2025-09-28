@@ -1,0 +1,210 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>Shot Timer</title>
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+  <button id="newParticipantBtn" class="top-new">New Participant</button>
+  <h1>Shot Timer</h1>
+
+  <!-- -------------------------------------------------------------
+       Big countdown display
+       ------------------------------------------------------------- -->
+  <div id="display">00:00.0</div>
+
+  <!-- collapsed setup area (toggle shows full controls) -->
+
+  <!-- -------------------------------------------------------------
+       Course chooser (loads data/courses/*.json)
+       ------------------------------------------------------------- -->
+  <!-- Collapsible area: hide setup, course chooser, RMS, and device selectors by default -->
+  <button id="collapseToggle" class="collapse-toggle" aria-expanded="false" aria-controls="collapsedArea">Show setup ▸</button>
+  <div id="collapsedArea" class="collapsed hidden">
+    <section id="setup">
+      <label>
+        Total time (seconds):
+        <input type="number"
+          id="totalSecInput"
+          title="Total countdown time in seconds for the stage. Must be a positive integer."
+          min="1"
+          value="5"
+          step="1">
+      </label>
+
+      <label>
+        Expected shots:
+        <input type="number"
+          id="shotsCountInput"
+          title="Expected number of shots for the stage. Used for display and scoring."
+          min="1"
+          value="3"
+          step="1">
+      </label>
+
+      <label>
+        Shot‑detect threshold (RMS 0‑127):
+        <input type="range"
+               id="thresholdInput"
+               title="Shot detection sensitivity. Higher values make detection less sensitive. Use Listen to observe RMS and choose a value below your clap peaks but above background noise."
+               min="0"
+               max="127"
+               value="30">
+        <span id="thresholdValue">30</span>
+      </label>
+      <p id="thresholdHelp" class="input-hint">Tip: Click "Detect Devices" then "Listen" and clap near the mic. Note the RMS value shown, then set the threshold a little below your clap peak but above the ambient noise level.</p>
+
+      <label>
+        Debounce (ms) – ignore repeats within this window:
+        <input type="range"
+          id="debounceInput"
+          title="Debounce window in milliseconds. Repeated detections within this time are ignored to prevent duplicates from a single event."
+          min="0"
+          max="1000"
+          step="50"
+          value="50">
+        <span id="debounceValue">50</span>
+      </label>
+      <label>
+        <input type="checkbox" id="beepOnShot">
+        Beep on detection
+      </label>
+      <label>
+        <input type="checkbox" id="showRmsColumn">
+        Show RMS column
+      </label>
+      <label>
+        UI zoom (%):
+        <input type="range" id="uiZoom" title="Adjust UI scale for this device (persists)" min="80" max="150" step="5" value="100">
+        <span id="uiZoomValue">100%</span>
+      </label>
+    </section>
+
+    <section id="courseChooser">
+      <div class="chooser-fields">
+        <div class="chooser-row">
+          <label class="chooser-label">
+            Course:
+            <select id="courseSelect">
+              <option value="">(select a course)</option>
+            </select>
+          </label>
+          <!-- lightweight course notes area (populated by courseChooser.js) -->
+          <div id="courseNotes" class="course-notes input-hint">Select a course to see course notes.</div>
+        </div>
+
+        <div class="chooser-row">
+          <label class="chooser-label">
+            Stage:
+            <select id="stageSelect">
+              <option value="">(select a stage)</option>
+            </select>
+          </label>
+        </div>
+      </div>
+    </section>
+
+    <!-- Live RMS meter (read‑only, just for visual feedback) -->
+    <section id="rmsSection">
+      <label>
+        Mic level (RMS):
+        <input type="range"
+               id="rmsMeter"
+               min="0"
+               max="127"
+               value="0"
+               disabled>
+        <span id="rmsValue">0.00</span>
+      </label>
+      <p id="rmsTip" class="input-hint">Tip: "RMS" (root mean square) is a short-term measure of signal energy — higher RMS means louder sound. The meter shows RMS; in decibels (dBFS) that's 20 &middot; log10(RMS) when samples are normalized (RMS = 1.0 &rarr; 0&nbsp;dBFS). Converting to real acoustic dB SPL requires microphone calibration.</p>
+    </section>
+
+    <!-- Device selectors (filled by controls.js) -->
+    <section id="devices">
+      <label>
+        Mic:
+        <select id="micSelect"></select>
+      </label>
+
+      <label>
+        Speaker:
+        <select id="speakerSelect"></select>
+      </label>
+    </section>
+
+    <!-- Show setup checkbox removed: setup buttons will be visible when collapsed area is expanded -->
+  </div>
+
+  <!-- Next stage button sits above the main control buttons on its own row -->
+  <div class="next-row">
+    <button id="nextStageBtn">Next Stage in Course</button>
+  </div>
+
+  <!-- -------------------------------------------------------------
+       Control buttons
+       ------------------------------------------------------------- -->
+  <div class="buttons">
+    <button id="detectBtn">Detect Devices</button>
+    <button id="listenBtn">Listen</button>
+    <button id="calibrateBtn">Calibrate Latency</button>
+    <button id="startBtn">Start</button>
+  <button id="resetBtn">Reset Stage</button>
+  </div>
+
+  <!-- Current stage instructions (large, prominent) — moved below the controls per request -->
+  <section id="stageInstructions" aria-live="polite">
+    <div class="stage-instructions-inner">
+      <h2 id="stageTitle">No stage selected</h2>
+      <div id="stageMeta" class="stage-meta">&nbsp;</div>
+      <div id="stageRounds" class="stage-rounds">&nbsp;</div>
+      <div id="stageDetails">Select a course and stage to see instructions here.</div>
+    </div>
+  </section>
+
+  <!-- Small status area for permission / device messages -->
+  <div id="status" role="status" aria-live="polite" class="status"></div>
+  <!-- -------------------------------------------------------------
+       Shots‑detected panel (populated by shotsTable.js)
+       ------------------------------------------------------------- -->
+  <section id="shotsPanel">
+    <h2>Shots detected</h2>
+    <div id="shotsSummary">Detected shots: <span id="shotsSummaryCount">0</span></div>
+    <table id="shotsTable">
+      <thead>
+        <tr>
+          <th>#</th>
+          <th>Stage</th>
+          <th>Time</th>
+          <th title="Delta between this shot and the previous shot (ms)">Δ (ms)</th>
+          <th>RMS</th>
+        </tr>
+      </thead>
+      <tbody><!-- rows inserted by JS --></tbody>
+    </table>
+  </section>
+
+  <!-- -------------------------------------------------------------
+       Entry‑point script (ES‑module)
+       ------------------------------------------------------------- -->
+  <script>
+    // Collapse toggle behaviour — shows/hides the setup/course/devices area
+    (function () {
+      const btn = document.getElementById('collapseToggle');
+      const area = document.getElementById('collapsedArea');
+      if (!btn || !area) return;
+      btn.addEventListener('click', () => {
+        const expanded = btn.getAttribute('aria-expanded') === 'true';
+        if (expanded) {
+          area.classList.add('collapsed'); area.classList.add('hidden');
+          btn.setAttribute('aria-expanded', 'false'); btn.textContent = 'Show setup ▸';
+        } else {
+          area.classList.remove('collapsed'); area.classList.remove('hidden');
+          btn.setAttribute('aria-expanded', 'true'); btn.textContent = 'Hide setup ▾';
+        }
+      });
+    }());
+  </script>
+  <script type="module" src="./js/main.js"></script>
+</body>
+</html>

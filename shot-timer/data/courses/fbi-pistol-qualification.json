@@ -1,0 +1,27 @@
+{
+  "id": "fbi-pistol-qualification",
+  "name": "FBI Pistol Qualification",
+  "roundCount": 50,
+  "target": "QIT-99",
+  "scoreRules": {
+    "bottleZonePoints": 2,
+    "passingScore": 80,
+    "maxScore": 100
+  },
+  "notes": "All draws from concealment unless otherwise noted. Ready position has firearm pointed at 45-degree angle to the ground in front of the target, safety engaged if applicable, finger off trigger.",
+  "stages": [
+    { "id": 1, "distanceYards": 3,  "startPosition": "Draw",  "shots": 6, "timeSec": 6,  "notes": "Fire 3 strong hand, switch hands, fire 3 weak hand." },
+    { "id": 2, "distanceYards": 5,  "startPosition": "Draw",  "shots": 3, "timeSec": 3,  "notes": "Draw and fire 3 shots in 3 seconds." },
+    { "id": 3, "distanceYards": 5,  "startPosition": "Ready", "shots": 3, "timeSec": 2,  "notes": "From the low ready position, aim and fire 3 shots in 2 seconds." },
+    { "id": 4, "distanceYards": 5,  "startPosition": "Ready", "shots": 6, "timeSec": 4,  "notes": "From the low ready position, aim and fire 6 shots in 4 seconds." },
+    { "id": 5, "distanceYards": 7,  "startPosition": "Draw",  "shots": 5, "timeSec": 5,  "notes": "Draw and fire 5 shots in 5 seconds." },
+    { "id": 6, "distanceYards": 7,  "startPosition": "Ready", "shots": 8, "timeSec": 8,  "notes": "Fire 4 shots, reload, fire 4 more shots." },
+    { "id": 7, "distanceYards": 7,  "startPosition": "Ready", "shots": 5, "timeSec": 4,  "notes": "From the low ready, aim and fire 5 shots in 4 seconds." },
+    { "id": 8, "distanceYards": 15, "startPosition": "Draw",  "shots": 3, "timeSec": 6,  "notes": "Draw and fire 3 shots in 6 seconds." },
+    { "id": 9, "distanceYards": 15, "startPosition": "Ready", "shots": 3, "timeSec": 5,  "notes": "From the low ready, aim and fire 3 shots in 5 seconds." },
+    { "id": 10, "distanceYards": 25, "startPosition": "Draw",  "shots": 8, "timeSec": 20, "notes": "Fire 4 shots, drop to kneeling, fire 4 more shots." }
+  ],
+  "summary": { "totalShots": 50, "totalTimeSec": 63 },
+  "createdBy": "Rob Morrison",
+  "createdAt": "2025-09-27"
+}

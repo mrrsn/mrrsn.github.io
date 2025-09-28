@@ -1,0 +1,343 @@
+/* style.css – minimal styling for the new layout */
+body {
+  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI",
+               Roboto, Helvetica, Arial, sans-serif;
+  margin: 0 auto;
+  padding: 1rem;
+  max-width: 1100px;
+  background: #fafafa;
+  color: #222;
+  -webkit-font-smoothing: antialiased;
+}
+
+h1 {
+  text-align: center;
+  margin-bottom: 1rem;
+  clear: both; /* ensure heading sits on its own line below floated top-new */
+  margin-top: 0.4rem;
+}
+
+/* Countdown */
+#display {
+  /* responsive large countdown — scales from phones to desktops */
+  font-size: clamp(2rem, 8vw, 5rem);
+  text-align: center;
+  margin: 1rem 0 1.25rem 0;
+  font-weight: 700;
+  line-height: 1;
+}
+
+/* Sections – give a little vertical spacing */
+section {
+  margin: 1rem 0;
+}
+
+/* Labels – block layout for readability */
+label {
+  display: block;
+  margin: 0.45rem 0;
+}
+
+.input-hint {
+  margin: 0.25rem 0 0.6rem 0;
+  color: #555;
+  font-size: 0.95rem;
+}
+
+/* Range value spans (the numbers next to sliders) */
+span[id$="Value"] {
+  margin-left: 0.5rem;
+  font-weight: bold;
+}
+
+/* Buttons container */
+.buttons {
+  text-align: center;
+  margin-top: 1rem;
+}
+button {
+  padding: 0.6rem 1rem;
+  margin: 0.35rem;
+  font-size: 1rem;
+  cursor: pointer;
+  border: none;
+  border-radius: 6px;
+  touch-action: manipulation;
+}
+
+/* Simple colour scheme */
+#detectBtn    { background: #0066cc; color: white; }
+#calibrateBtn { background: #28a745; color: white; }
+#startBtn     { background: #28a745; color: white; }
+#resetBtn     { background: #dc3545; color: white; }
+
+/* Shots table */
+#shotsPanel {
+  margin-top: 2rem;
+  border-top: 1px solid #ddd;
+  padding-top: 1rem;
+  overflow-x: auto; /* allow horizontal scroll on narrow screens */
+}
+#shotsTable {
+  width: 100%;
+  border-collapse: collapse;
+  display: table;
+  table-layout: fixed;
+  word-break: break-word;
+}
+#shotsTable th,
+#shotsTable td {
+  border: 1px solid #ccc;
+  padding: 0.4rem 0.6rem;
+  text-align: center;
+}
+#shotsTable tbody tr:nth-child(even) {
+  background: #f0f0f0;
+}
+
+/* When the table has .hide-rms, hide the RMS column (both header and cells) */
+#shotsTable.hide-rms th:nth-child(5),
+#shotsTable.hide-rms td:nth-child(5) {
+  display: none;
+}
+
+/* Highlight shots that are late or over the expected count */
+.late { background: #ffecec !important; color: #7a0b0b; font-weight: 700; }
+.over-count { background: #fff4f4 !important; color: #a00; }
+
+/* Dark‑mode support */
+@media (prefers-color-scheme: dark) {
+  body { background: #111; color: #eee; }
+  #shotsTable th,
+  #shotsTable td { border-color: #555; }
+  #shotsTable tbody tr:nth-child(even) { background: #222; }
+}
+
+/* Status area (permission / device messages) */
+.status {
+  margin: 1rem 0;
+  padding: 0.5rem 0.75rem;
+  border-radius: 6px;
+  background: #f3f6ff;
+  color: #0b3b7b;
+  font-weight: 600;
+  text-align: center;
+}
+.status.success { background: #e8f7ec; color: #1b6b2b; }
+.status.error   { background: #fff0f0; color: #7a0b0b; }
+.hidden { display: none !important; }
+
+/* Tiny spinner to indicate scanning */
+.spinner {
+  display: inline-block;
+  width: 1rem;
+  height: 1rem;
+  border: 2px solid rgba(0,0,0,0.1);
+  border-top-color: rgba(0,0,0,0.6);
+  border-radius: 50%;
+  animation: spin 0.8s linear infinite;
+  vertical-align: middle;
+  margin-left: 0.5rem;
+}
+@keyframes spin { to { transform: rotate(360deg); } }
+
+/* Increase font size for all non-heading elements by 50%.
+   Use rem so headings (which already use rem) keep their specified sizes.
+   This targets every element that is not an h1..h6 so headings remain unchanged. */
+/* Scale non-heading text: mobile-friendly baseline, larger on wide screens */
+body :not(h1):not(h2):not(h3):not(h4):not(h5):not(h6) {
+  font-size: 1.05rem; /* comfortable on phones */
+}
+
+@media (min-width: 900px) {
+  body :not(h1):not(h2):not(h3):not(h4):not(h5):not(h6) {
+    font-size: 1.5rem; /* larger on laptops/desktops */
+  }
+}
+
+/* Course chooser styling: fields on the left in two rows, Next button on the right spanning both rows */
+#courseChooser {
+  display: grid;
+  grid-template-columns: 1fr auto;
+  grid-template-rows: auto auto;
+  gap: 0.25rem 0.75rem;
+  align-items: center;
+}
+
+#courseChooser .chooser-fields {
+  grid-column: 1 / 2;
+  grid-row: 1 / 3; /* occupies both rows vertically */
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: 0.25rem;
+}
+
+#courseChooser label { margin: 0; }
+
+/* New row layout: course dropdown + notes aligned horizontally */
+#courseChooser .chooser-row {
+  display: flex;
+  align-items: center; /* vertical alignment between select and notes */
+  gap: 0.75rem;
+}
+
+#courseChooser .chooser-label { flex: 0 0 auto; margin: 0; }
+#courseChooser #courseNotes { flex: 1 1 auto; }
+
+#nextStageBtn {
+  grid-column: 2 / 3;
+  grid-row: 1 / 3; /* span both rows */
+  align-self: stretch;
+  padding: 0.6rem 0.9rem;
+}
+
+/* Collapsible area that hides the setup/course/device controls by default */
+.collapse-toggle {
+  display: inline-block;
+  margin: 0.5rem 0;
+  background: transparent;
+  border: none;
+  color: #0066cc;
+  cursor: pointer;
+  font-size: 1rem;
+}
+
+#collapsedArea.collapsed { display: none; }
+#collapsedArea { margin: 0.5rem 0 1rem 0; padding: 0.5rem; border: 1px dashed #ddd; background: #fff; }
+.next-row { text-align: center; margin: 0.5rem 0 1rem 0; }
+
+.course-notes { margin-top: 0.5rem; color: #444; }
+
+/* New Participant top button styling */
+.top-new {
+  display: inline-block;
+  padding: 0.5rem 0.85rem;
+  margin: 0 0 0.5rem 0;
+  font-weight: 700;
+  background: #0066cc;
+  color: #fff;
+  border-radius: 6px;
+}
+
+/* Buttons layout: stacked on narrow screens, multi-column on wide */
+.buttons {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: 0.4rem;
+}
+
+@media (max-width: 600px) {
+  /* Reduce page padding on small devices */
+  body { padding: 0.6rem; }
+
+  /* Make control buttons full-width to be touch-friendly */
+  .buttons button {
+    display: block;
+    flex: 1 1 100%;
+    width: 100%;
+    margin: 0.35rem 0;
+    font-size: 1.2rem; /* larger tap target text */
+    padding: 0.9rem 1rem; /* bigger touch area */
+    min-height: 48px; /* recommended minimum touch target */
+    border-radius: 8px;
+  }
+
+  /* Slightly increase overall base font size on phones */
+  body, label, .input-hint, select, input[type="number"], input[type="range"] {
+    font-size: 1.1rem;
+  }
+
+  /* Make selects and inputs easier to tap */
+  select, input[type="number"], input[type="range"] {
+    padding: 0.45rem 0.5rem;
+  }
+
+  /* Stack course chooser and next button vertically */
+  #courseChooser { grid-template-columns: 1fr; grid-template-rows: auto auto; }
+  #nextStageBtn { grid-column: 1 / -1; grid-row: 3 / 4; width: 100%; }
+
+  /* Make collapsed area visually tighter */
+  #collapsedArea { padding: 0.5rem; }
+
+  /* Stage instructions slightly smaller on phones */
+  #stageInstructions { padding: 0.6rem; }
+
+  /* Make the top new button centered on phones */
+  .top-new { display: block; margin: 0 auto 0.6rem auto; font-size: 1.15rem; padding: 0.7rem 1rem; }
+}
+
+@media (min-width: 900px) {
+  /* On wide screens place New Participant to the right of the title */
+  .top-new { float: right; margin-left: 1rem; }
+
+  /* Buttons are inline but constrained width */
+  .buttons button { flex: 0 0 auto; }
+}
+
+/* Stage instructions area (large, readable) */
+#stageInstructions {
+  margin: 1.25rem 0;
+  padding: 0.75rem 1rem;
+  border: 1px solid #e0e0e0;
+  background: #ffffff;
+}
+#stageInstructions .stage-instructions-inner {
+  text-align: center;
+}
+#stageInstructions #stageTitle {
+  font-size: 1.6rem;
+  margin: 0 0 0.25rem 0;
+}
+#stageInstructions #stageDetails {
+  font-size: 1.25rem;
+  color: #333;
+}
+
+/* Heading lines: stage title, rounds/time, yards/position should be prominent */
+#stageInstructions #stageTitle {
+  font-size: 1.6rem;
+  font-weight: 800;
+  margin: 0;
+}
+#stageInstructions #stageRounds {
+  font-size: 1.25rem;
+  font-weight: 700;
+  color: #222;
+  margin-top: 0.25rem;
+}
+#stageInstructions #stageMeta {
+  font-size: 1.25rem;
+  font-weight: 700;
+  color: #444;
+  margin-top: 0.25rem;
+}
+
+/* Details are slightly less prominent */
+#stageInstructions #stageDetails {
+  font-size: 1.05rem;
+  color: #222;
+  margin-top: 0.5rem;
+}
+
+/* Stage meta line (yards and start position) */
+#stageInstructions .stage-meta {
+  font-size: 1.1rem;
+  font-weight: 600;
+  color: #444;
+  margin: 0.25rem 0 0.5rem 0;
+}
+
+/* Make the yards portion slightly larger and accented when present */
+#stageInstructions .yard {
+  font-size: 1.4rem;
+  color: #b22;
+  font-weight: 700;
+  margin-right: 0.5rem;
+}
+
+@media (max-width: 600px) {
+  #stageInstructions #stageTitle { font-size: 1.2rem; }
+  #stageInstructions .yard { font-size: 1.2rem; }
+  #stageInstructions #stageDetails { font-size: 1rem; }
+}

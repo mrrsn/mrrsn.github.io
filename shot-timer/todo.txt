@@ -1,0 +1,29 @@
+SHOT-TIMER TODO (living)
+=========================
+Updated: 2025-09-28
+
+High priority / next actions
+---------------------------
+[ ] Publish a public site at `mrrsn.github.io/shot-timer` from this private repo
+    - Option: use GitHub Actions in this private repo to build/copy the static files to a public repo (or to the gh-pages branch of a public repo named `mrrsn.github.io` / `shot-timer`)
+    - Tasks:
+      - Create a public repo to host the site (e.g., `mrrsn/shot-timer-pages` or `mrrsn/shot-timer` under a public user pages repo)
+      - Add a GitHub Actions workflow to build (if needed) and push the `build/` or web root files to the public repo's `gh-pages` branch (or the special user site repo)
+      - Create a PAT with minimal scope and store it as `PUSH_TOKEN` in this repo's Actions secrets for deployment
+      - Verify the published site and update DNS or repo settings if necessary
+
+Remaining / nice-to-have
+------------------------
+[ ] Save/load UI settings (threshold, debounce, selected devices) — persist to localStorage
+[ ] Accessibility improvements (keyboard support, ARIA attributes)
+[ ] Tests: unit tests for `utils.formatTime` and timer/config behaviors
+[ ] CI: basic GitHub Actions for linting and testing
+[ ] README: usage, development, and troubleshooting notes (serve locally, allow mic)
+
+Quick debugging tips
+--------------------
+- Use Chrome/Edge on Windows for best support (setSinkId requires secure context in some browsers).
+- Serve site locally: `python -m http.server 8000` and open http://localhost:8000
+- If microphone access not prompted, check browser site permissions and OS privacy settings.
+
+If you'd like, I can add the GitHub Actions workflow now — tell me the name of the public repo you want to publish to and whether you prefer `gh-pages` branch or the user site repo (`mrrsn.github.io`).

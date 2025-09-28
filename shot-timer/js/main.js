@@ -25,7 +25,7 @@ document.addEventListener('DOMContentLoaded', async () => {
     onCalibrate: () => calibrateLatency(),
     onNewParticipant: () => {
       // Prompt to avoid accidental resets
-      const ok = confirm('Start a new participant? This will clear current participant shots and reset the current stage to the first stage. Proceed?');
+  const ok = confirm('Reset course for the next shooter? This will clear shot memory for the entire course and reset to the first stage. Proceed?');
       if (!ok) return;
 
       // Clear stored participant shots and reset UI for a new participant
@@ -52,10 +52,10 @@ document.addEventListener('DOMContentLoaded', async () => {
             stageSelect.dispatchEvent(new Event('change', { bubbles: true }));
           }
         }
-      } catch (e) { console.warn('Failed to reset stage selection for new participant', e); }
+  } catch (e) { console.warn('Failed to reset stage selection for Reset Course', e); }
 
-      const status = document.getElementById('status');
-      if (status) { status.classList.remove('hidden'); status.textContent = 'New participant started — stage reset to 1'; setTimeout(() => status.classList.add('hidden'), 2000); }
+  const status = document.getElementById('status');
+  if (status) { status.classList.remove('hidden'); status.textContent = 'Course reset for next shooter — stage reset to 1'; setTimeout(() => status.classList.add('hidden'), 2000); }
     }
   });
 

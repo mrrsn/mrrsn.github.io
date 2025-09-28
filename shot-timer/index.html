@@ -6,7 +6,7 @@
   <link rel="stylesheet" href="style.css">
 </head>
 <body>
-  <button id="newParticipantBtn" class="top-new">New Participant</button>
+  <button id="resetCourseBtn" class="top-new">Reset Course</button>
   <button id="themeBtn" class="top-theme-btn" aria-pressed="false" title="Toggle dark mode">🌙</button>
   <label class="top-theme" style="margin-left:0.5rem; display:none;">
     <input type="checkbox" id="themeToggle"> Dark mode
@@ -65,7 +65,7 @@
                value="30">
         <span id="thresholdValue">30</span>
       </label>
-      <p id="thresholdHelp" class="input-hint">Tip: Click "Detect Devices" then "Listen" and clap near the mic. Note the RMS value shown, then set the threshold a little below your clap peak but above the ambient noise level.</p>
+  <p id="thresholdHelp" class="input-hint"><span class="info-icon" role="img" aria-label="Info">ℹ️</span> Click "Detect Devices" then "Listen" and clap near the mic. Note the RMS value shown, then set the threshold a little below your clap peak but above the ambient noise level.</p>
 
       <label>
         Debounce (ms) – ignore repeats within this window:
@@ -87,9 +87,12 @@
         Show RMS column
       </label>
       <label>
-        UI zoom (%):
-        <input type="range" id="uiZoom" title="Adjust UI scale for this device (persists)" min="80" max="150" step="5" value="100">
-        <span id="uiZoomValue">100%</span>
+        UI zoom:
+        <div class="ui-zoom-control" aria-live="polite">
+          <button type="button" id="uiZoomMinus" aria-label="Decrease UI zoom">−</button>
+          <span id="uiZoomValue">100%</span>
+          <button type="button" id="uiZoomPlus" aria-label="Increase UI zoom">+</button>
+        </div>
       </label>
     </section>
 
@@ -129,7 +132,7 @@
                disabled>
         <span id="rmsValue">0.00</span>
       </label>
-      <p id="rmsTip" class="input-hint">Tip: "RMS" (root mean square) is a short-term measure of signal energy — higher RMS means louder sound. The meter shows RMS; in decibels (dBFS) that's 20 &middot; log10(RMS) when samples are normalized (RMS = 1.0 &rarr; 0&nbsp;dBFS). Converting to real acoustic dB SPL requires microphone calibration.</p>
+  <p id="rmsTip" class="input-hint"><span class="info-icon" role="img" aria-label="Info">ℹ️</span> "RMS" (root mean square) is a short-term measure of signal energy — higher RMS means louder sound. The meter shows RMS; in decibels (dBFS) that's 20 &middot; log10(RMS) when samples are normalized (RMS = 1.0 &rarr; 0&nbsp;dBFS). Converting to real acoustic dB SPL requires microphone calibration.</p>
     </section>
 
     <!-- Device selectors (filled by controls.js) -->
@@ -226,10 +229,16 @@
       function applyTheme(t) {
         if (t === 'dark') {
           document.documentElement.setAttribute('data-theme', 'dark');
-          if (btn) btn.setAttribute('aria-pressed', 'true');
+          if (btn) {
+            btn.setAttribute('aria-pressed', 'true');
+            btn.textContent = '☀️'; /* show sun in dark mode to indicate clicking will be bright */
+          }
         } else {
           document.documentElement.removeAttribute('data-theme');
-          if (btn) btn.setAttribute('aria-pressed', 'false');
+          if (btn) {
+            btn.setAttribute('aria-pressed', 'false');
+            btn.textContent = '🌙';
+          }
         }
         if (cb) cb.checked = (t === 'dark');
       }

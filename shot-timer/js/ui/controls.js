@@ -118,39 +118,59 @@ export function initControls({ onStart = () => {}, onReset = () => {}, onCalibra
     const showRmsChk = document.getElementById('showRmsColumn');
     if (showRmsChk) { showRmsChk.checked = false; try { setRmsColumnVisible(Boolean(showRmsChk.checked)); } catch (e) {} showRmsChk.addEventListener('change', e => { try { setRmsColumnVisible(Boolean(e.target.checked)); } catch (err) { console.warn('Failed to toggle RMS column', err); } }); }
 
-    // UI zoom control (persists in localStorage)
-    const uiZoom = document.getElementById('uiZoom');
+    // UI zoom control (discrete steps to avoid jank while sliding)
+    const ZOOM_STEPS = [80, 100, 120, 140, 160];
+    const uiZoomMinus = document.getElementById('uiZoomMinus');
+    const uiZoomPlus = document.getElementById('uiZoomPlus');
     const uiZoomValue = document.getElementById('uiZoomValue');
-    const ZOOM_KEY = 'shot-timer-ui-zoom';
     function applyZoom(pct) {
       try {
         const root = document.documentElement;
-        // base font-size of 16px scaled by percent
         const base = 16 * (pct / 100);
         root.style.fontSize = `${base}px`;
         if (uiZoomValue) uiZoomValue.textContent = `${pct}%`;
       } catch (e) { console.warn('applyZoom failed', e); }
     }
-    // initialise from storage or input default
+    function clampToStep(pct) { // find nearest allowed step (exact match expected)
+      for (let i = 0; i < ZOOM_STEPS.length; i++) if (ZOOM_STEPS[i] === pct) return pct;
+      // fallback: pick closest
+      let best = ZOOM_STEPS[0]; let minD = Math.abs(pct - best);
+      for (let s of ZOOM_STEPS) { const d = Math.abs(pct - s); if (d < minD) { minD = d; best = s; } }
+      return best;
+    }
+  // initialise to platform default (desktop:100, mobile:160). Session-only — do not persist.
     try {
-      const stored = localStorage.getItem(ZOOM_KEY);
-      const v = stored ? Number(stored) : (uiZoom ? Number(uiZoom.value) : 100);
-      if (uiZoom) uiZoom.value = String(v);
-      applyZoom(v);
+      const ua = navigator.userAgent || '';
+      const isMobileUa = /Mobi|Android|iPhone|iPad|iPod|Opera Mini|IEMobile|WPDesktop/i.test(ua);
+      const prefersCoarse = window.matchMedia && window.matchMedia('(pointer: coarse)').matches;
+      const isMobile = isMobileUa || prefersCoarse;
+  const initial = isMobile ? 160 : 100;
+      applyZoom(initial);
     } catch (e) { /* ignore */ }
-    if (uiZoom) uiZoom.addEventListener('input', e => {
-      const v = Number(e.target.value) || 100;
-      applyZoom(v);
-      try { localStorage.setItem(ZOOM_KEY, String(v)); } catch (err) { /* ignore */ }
-    });
+    function stepZoom(direction) {
+      try {
+        const cur = (() => { const txt = uiZoomValue ? uiZoomValue.textContent.replace('%','') : '100'; return Number(txt); })();
+        const idx = Math.max(0, ZOOM_STEPS.indexOf(clampToStep(cur)));
+        const nextIdx = Math.min(ZOOM_STEPS.length - 1, Math.max(0, idx + (direction > 0 ? 1 : -1)));
+        const next = ZOOM_STEPS[nextIdx];
+        applyZoom(next);
+      } catch (e) { console.warn('stepZoom failed', e); }
+    }
+    if (uiZoomMinus) uiZoomMinus.addEventListener('click', () => stepZoom(-1));
+    if (uiZoomPlus) uiZoomPlus.addEventListener('click', () => stepZoom(1));
 
     // Theme toggle (dark mode) — persist as 'light' or 'dark'
     const themeToggle = document.getElementById('themeToggle');
     const THEME_KEY = 'shot-timer-theme';
     function applyTheme(t) {
       try {
-        if (t === 'dark') document.documentElement.setAttribute('data-theme', 'dark');
-        else document.documentElement.removeAttribute('data-theme');
+        if (t === 'dark') {
+          document.documentElement.setAttribute('data-theme', 'dark');
+          const btn = document.getElementById('themeBtn'); if (btn) { btn.setAttribute('aria-pressed','true'); btn.textContent = '☀️'; }
+        } else {
+          document.documentElement.removeAttribute('data-theme');
+          const btn = document.getElementById('themeBtn'); if (btn) { btn.setAttribute('aria-pressed','false'); btn.textContent = '🌙'; }
+        }
         if (themeToggle) themeToggle.checked = (t === 'dark');
       } catch (e) { console.warn('applyTheme failed', e); }
     }
@@ -169,20 +189,73 @@ export function initControls({ onStart = () => {}, onReset = () => {}, onCalibra
       try { localStorage.setItem(THEME_KEY, t); } catch (err) { /* ignore */ }
     });
 
-    // Speaker select
+    // Speaker select — hide or guard on platforms that don't support setSinkId
     const speakerSelect = document.getElementById('speakerSelect');
-    if (speakerSelect) speakerSelect.addEventListener('change', async e => { try { await setOutputDevice(e.target.value); setStatus(`Using output device: ${speakerSelect.selectedOptions[0]?.text || e.target.value}`, 'success'); } catch (err) { setStatus('Failed to set output device — this browser may not support setSinkId.', 'error'); } });
+    try {
+      if (speakerSelect && supportsSetSinkId()) {
+        speakerSelect.addEventListener('change', async e => {
+          try {
+            await setOutputDevice(e.target.value);
+            setStatus(`Using output device: ${speakerSelect.selectedOptions[0]?.text || e.target.value}`, 'success');
+          } catch (err) {
+            setStatus('Failed to set output device — this browser may not support setSinkId.', 'error');
+          }
+        });
+      } else if (speakerSelect) {
+        // hide the control on platforms where we can't programmatically switch output
+        speakerSelect.style.display = 'none';
+        const spkLabel = speakerSelect.parentNode; if (spkLabel) spkLabel.style.display = 'none';
+        // show a gentle visible note so users know the system manages output routing
+        try {
+          // Respect a saved dismissal so the note doesn't reappear for users who already acknowledged it
+          const DISMISS_KEY = 'shot-timer-system-output-note-dismissed';
+          const dismissed = (() => { try { return localStorage.getItem(DISMISS_KEY) === '1'; } catch (e) { return false; } })();
+          if (!dismissed) {
+            let note = document.getElementById('systemOutputNote');
+            if (!note) {
+              note = document.createElement('div');
+              note.id = 'systemOutputNote';
+              note.className = 'system-output-note input-hint';
+              const icon = document.createElement('span');
+              icon.className = 'info-icon';
+              icon.setAttribute('role', 'img');
+              icon.setAttribute('aria-label', 'Info');
+              icon.textContent = 'ℹ️';
+              note.appendChild(icon);
+              const txt = document.createElement('span');
+              txt.textContent = 'Using system audio output — change output via your device (Control Center on iPhone, system audio settings, or Bluetooth).';
+              note.appendChild(txt);
+              const btn = document.createElement('button');
+              btn.type = 'button';
+              btn.className = 'dismiss-note-btn';
+              btn.setAttribute('aria-label', 'Dismiss system audio note');
+              btn.textContent = 'Got it';
+              btn.addEventListener('click', () => {
+                try { localStorage.setItem(DISMISS_KEY, '1'); } catch (e) { /* ignore */ }
+                note.style.display = 'none';
+              });
+              note.appendChild(btn);
+              // insert after the (now-hidden) speaker label if possible, otherwise append to devices section
+              if (spkLabel && spkLabel.parentNode) spkLabel.parentNode.appendChild(note);
+              else {
+                const devices = document.getElementById('devices'); if (devices) devices.appendChild(note);
+              }
+            }
+          }
+        } catch (e) { /* ignore DOM errors */ }
+      }
+    } catch (e) { /* ignore */ }
 
     // Control buttons
   const startBtn = $('#startBtn');
   const resetBtn = $('#resetBtn');
     const calibrateBtn = $('#calibrateBtn');
     const detectBtn = $('#detectBtn');
-    const newParticipantBtn = $('#newParticipantBtn');
-
+    const resetCourseBtn = $('#resetCourseBtn');
+  
   if (startBtn) startBtn.addEventListener('click', async () => { try { stopListening(); setListenMode(false); } catch (err) {} if (typeof onStart === 'function') onStart(); });
     if (resetBtn) resetBtn.addEventListener('click', () => { if (typeof onReset === 'function') onReset(); });
-    if (newParticipantBtn) newParticipantBtn.addEventListener('click', () => { if (typeof onNewParticipant === 'function') onNewParticipant(); });
+    if (resetCourseBtn) resetCourseBtn.addEventListener('click', () => { if (typeof onNewParticipant === 'function') onNewParticipant(); });
     if (calibrateBtn) calibrateBtn.addEventListener('click', () => { if (typeof onCalibrate === 'function') onCalibrate(); });
 
     if (listenBtn) listenBtn.addEventListener('click', async () => { if (listenBtn.textContent === 'Listen') await startListening(); else stopListening(); });

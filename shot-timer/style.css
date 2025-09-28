@@ -155,6 +155,67 @@ label {
   font-size: 0.95rem;
 }
 
+/* UI zoom control: compact +/- buttons with a percent display */
+.ui-zoom-control {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
+  margin-left: 0.5rem;
+}
+.ui-zoom-control button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 2rem;
+  height: 2rem;
+  border-radius: 6px;
+  border: 1px solid rgba(0,0,0,0.08);
+  background: transparent;
+  cursor: pointer;
+  font-size: 1.1rem;
+}
+.ui-zoom-control button:hover { background: rgba(0,0,0,0.03); }
+.ui-zoom-control #uiZoomValue { font-weight: 700; min-width: 3.2rem; text-align: center; display: inline-block; }
+
+html[data-theme="dark"] .ui-zoom-control button {
+  color: var(--text); /* use light page text color in dark mode */
+  border-color: rgba(255,255,255,0.08);
+}
+html[data-theme="dark"] .ui-zoom-control button:hover { background: rgba(255,255,255,0.03); }
+
+/* Small visible note shown when the browser uses system audio output (no programmatic speaker selection) */
+.system-output-note { margin-top: 0.35rem; font-size: 0.95rem; color: var(--muted); }
+
+/* Small inline info icon (uses emoji by default, scales with font-size) */
+.info-icon {
+  display: inline-block;
+  width: 1.1em;
+  height: 1.1em;
+  margin-right: 0.4rem;
+  vertical-align: middle;
+  line-height: 1;
+  font-size: 1.02em; /* keeps emoji aligned with text */
+}
+
+.dismiss-note-btn {
+  margin-left: 0.6rem;
+  padding: 0.2rem 0.45rem;
+  font-size: 0.9rem;
+  border-radius: 6px;
+  border: 1px solid rgba(0,0,0,0.08);
+  background: transparent;
+  cursor: pointer;
+}
+.dismiss-note-btn:hover { background: rgba(0,0,0,0.03); }
+
+/* Dark-mode tweaks: make the dismiss button readable on dark backgrounds */
+html[data-theme="dark"] .dismiss-note-btn {
+  /* Use the main text color in dark mode (light) so the small button is readable */
+  color: var(--text);
+  border-color: rgba(255,255,255,0.12);
+}
+html[data-theme="dark"] .dismiss-note-btn:hover { background: rgba(255,255,255,0.04); }
+
 /* Range value spans (the numbers next to sliders) */
 span[id$="Value"] {
   margin-left: 0.5rem;
@@ -313,13 +374,24 @@ body :not(h1):not(h2):not(h3):not(h4):not(h5):not(h6) {
   font-size: 1rem;
 }
 
+/* Make the collapse toggle more visible in dark mode with a lighter blue */
+html[data-theme="dark"] .collapse-toggle {
+  color: #9fcfff; /* lighter, airy blue for contrast on dark backgrounds */
+}
+html[data-theme="dark"] .collapse-toggle:hover {
+  color: #cfe9ff;
+}
+
 #collapsedArea.collapsed { display: none; }
 #collapsedArea { margin: 0.5rem 0 1rem 0; padding: 0.5rem; border: 1px dashed rgba(0,0,0,0.08); background: var(--panel-bg); color: var(--text); }
-.next-row { text-align: center; margin: 0.5rem 0 1rem 0; }
+.next-row { text-align: center; margin: 0.5rem 0 1rem 0; display: flex; justify-content: center; align-items: center; }
+
+/* Ensure the next-stage button has no stray margin that would nudge it off-center */
+.next-row button { margin: 0; }
 
 .course-notes { margin-top: 0.5rem; color: var(--muted); }
 
-/* New Participant top button styling */
+/* Reset Course top button styling */
 .top-new {
   display: inline-block;
   padding: 0.5rem 0.85rem;
@@ -337,18 +409,24 @@ body :not(h1):not(h2):not(h3):not(h4):not(h5):not(h6) {
   margin-left: 0.5rem;
 }
 
+/* Theme toggle button: visible primary button like Reset Course */
 .top-theme-btn {
   display: inline-block;
   vertical-align: middle;
   margin-left: 0.5rem;
   padding: 0.35rem 0.6rem;
   font-size: 1rem;
-  background: transparent;
-  border: 1px solid rgba(0,0,0,0.08);
+  background: var(--primary);
+  color: var(--button-text);
+  border: none;
   border-radius: 6px;
   cursor: pointer;
 }
 .top-theme-btn[aria-pressed="true"] { background: var(--primary); color: var(--button-text); border-color: transparent; }
+
+/* Hover and focus states for the theme button to match other primary action buttons */
+.top-theme-btn:hover { filter: brightness(0.95); }
+.top-theme-btn:focus { outline: 3px solid rgba(59,130,246,0.18); outline-offset: 2px; }
 
 /* Buttons layout: stacked on narrow screens, multi-column on wide */
 .buttons {
@@ -395,7 +473,9 @@ body :not(h1):not(h2):not(h3):not(h4):not(h5):not(h6) {
   #stageInstructions { padding: 0.6rem; }
 
   /* Make the top new button centered on phones */
-  .top-new { display: block; margin: 0 auto 0.6rem auto; font-size: 1.15rem; padding: 0.7rem 1rem; }
+  /* On phones place theme button at left and Reset Course at right on the same line */
+  .top-new { float: right; margin: 0 0 0.6rem 0; font-size: 1.05rem; padding: 0.5rem 0.85rem; }
+  .top-theme-btn { float: left; margin-left: 0; }
 }
 
 /* Improve readability of the setup area on small screens by forcing dark text
@@ -415,7 +495,7 @@ body :not(h1):not(h2):not(h3):not(h4):not(h5):not(h6) {
 }
 
 @media (min-width: 900px) {
-  /* On wide screens place New Participant to the right of the title */
+  /* On wide screens place Reset Course to the right of the title */
   .top-new { float: right; margin-left: 1rem; }
 
   /* Buttons are inline but constrained width */

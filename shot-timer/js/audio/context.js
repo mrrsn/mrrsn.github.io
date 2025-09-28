@@ -29,7 +29,14 @@ export async function initAudio() {
             opt.textContent = d.label || `Speaker (${d.deviceId.slice(0, 8)})`;
             speakerSelect.appendChild(opt);
           });
-        outputDeviceId = speakerSelect.value;
+        // Only remember/apply an output device if the platform supports programmatic
+        // sink selection (setSinkId). On mobile browsers like iOS Safari this is
+        // not available and we should rely on the system-selected output.
+        if (audioCtx && audioCtx.destination && typeof audioCtx.destination.setSinkId === 'function') {
+          outputDeviceId = speakerSelect.value;
+        } else {
+          outputDeviceId = null; // use system default
+        }
       } catch (err) {
         console.warn('Could not enumerate devices in initAudio:', err);
       }

@@ -169,19 +169,14 @@ label {
   width: 2rem;
   height: 2rem;
   border-radius: 6px;
-  border: 1px solid rgba(0,0,0,0.08);
-  background: transparent;
+  border: none;
   cursor: pointer;
   font-size: 1.1rem;
 }
-.ui-zoom-control button:hover { background: rgba(0,0,0,0.03); }
+.ui-zoom-control button:hover { filter: brightness(0.95); }
 .ui-zoom-control #uiZoomValue { font-weight: 700; min-width: 3.2rem; text-align: center; display: inline-block; }
 
-html[data-theme="dark"] .ui-zoom-control button {
-  color: var(--text); /* use light page text color in dark mode */
-  border-color: rgba(255,255,255,0.08);
-}
-html[data-theme="dark"] .ui-zoom-control button:hover { background: rgba(255,255,255,0.03); }
+/* .ui-zoom-control buttons will pick up color/background from .btn-primary when applied */
 
 /* Small visible note shown when the browser uses system audio output (no programmatic speaker selection) */
 .system-output-note { margin-top: 0.35rem; font-size: 0.95rem; color: var(--muted); }
@@ -238,16 +233,16 @@ button {
 }
 
 /* Simple colour scheme */
-#detectBtn    { background: var(--primary); color: var(--button-text); }
-#calibrateBtn { background: var(--accent); color: var(--button-text); }
-#startBtn     { background: var(--accent); color: var(--button-text); }
-#resetBtn     { background: var(--danger); color: var(--button-text); }
+#detectBtn    { background: var(--primary); color: #fff; }
+#calibrateBtn { background: var(--accent); color: #fff; }
+#startBtn     { background: var(--accent); color: #fff; }
+#resetBtn     { background: var(--danger); color: #fff; }
 
 /* Shots table */
 #shotsPanel {
-  margin-top: 2rem;
+  margin-top: 0.8rem; /* reduced gap between the hr and header */
   border-top: 1px solid rgba(0,0,0,0.08);
-  padding-top: 1rem;
+  padding-top: 0.6rem;
   overflow-x: auto; /* allow horizontal scroll on narrow screens */
 }
 #shotsTable {
@@ -267,15 +262,27 @@ button {
   background: var(--table-alt);
 }
 
+/* Make the Shots detected header centered and ensure the count uses the same font style */
+#shotsPanel h2 {
+  text-align: center;
+  margin-bottom: 0.5rem;
+  font-weight: 700; /* keep header prominent */
+}
+#shotsPanel h2 #shotsSummaryCount {
+  font-weight: inherit;
+  font-size: inherit;
+  font-family: inherit;
+  color: inherit;
+}
+
 /* When the table has .hide-rms, hide the RMS column (both header and cells) */
-#shotsTable.hide-rms th:nth-child(5),
-#shotsTable.hide-rms td:nth-child(5) {
+#shotsTable.hide-rms th:nth-child(4),
+#shotsTable.hide-rms td:nth-child(4) {
   display: none;
 }
 
 /* Highlight shots that are late or over the expected count */
-.late { background: #ffecec !important; color: #7a0b0b; font-weight: 700; }
-.over-count { background: #fff4f4 !important; color: #a00; }
+.shot-warning { background: #ffecec !important; color: #7a0b0b; font-weight: 700; }
 
 /* Dark‑mode support */
 @media (prefers-color-scheme: dark) {
@@ -298,6 +305,12 @@ button {
 .status.success { background: var(--status-success-bg); color: var(--status-success-text); }
 .status.error   { background: var(--status-error-bg); color: var(--status-error-text); }
 .hidden { display: none !important; }
+
+/* Fade animation for status messages. Uses .status-visible to trigger
+   the opacity/translate transition. The JS helper adds/removes .hidden
+   after the transition completes so display:none doesn't block the fade. */
+.status { opacity: 0; transform: translateY(-6px); transition: opacity 240ms ease, transform 240ms ease; }
+.status.status-visible { opacity: 1; transform: translateY(0); }
 
 /* Tiny spinner to indicate scanning */
 .spinner {
@@ -356,12 +369,6 @@ body :not(h1):not(h2):not(h3):not(h4):not(h5):not(h6) {
 #courseChooser .chooser-label { flex: 0 0 auto; margin: 0; }
 #courseChooser #courseNotes { flex: 1 1 auto; }
 
-#nextStageBtn {
-  grid-column: 2 / 3;
-  grid-row: 1 / 3; /* span both rows */
-  align-self: stretch;
-  padding: 0.6rem 0.9rem;
-}
 
 /* Collapsible area that hides the setup/course/device controls by default */
 .collapse-toggle {
@@ -384,22 +391,22 @@ html[data-theme="dark"] .collapse-toggle:hover {
 
 #collapsedArea.collapsed { display: none; }
 #collapsedArea { margin: 0.5rem 0 1rem 0; padding: 0.5rem; border: 1px dashed rgba(0,0,0,0.08); background: var(--panel-bg); color: var(--text); }
-.next-row { text-align: center; margin: 0.5rem 0 1rem 0; display: flex; justify-content: center; align-items: center; }
-
-/* Ensure the next-stage button has no stray margin that would nudge it off-center */
-.next-row button { margin: 0; }
+/* legacy .next-row removed; layout now controlled by .buttons and .next-btn */
 
 .course-notes { margin-top: 0.5rem; color: var(--muted); }
 
 /* Reset Course top button styling */
 .top-new {
   display: inline-block;
-  padding: 0.5rem 0.85rem;
+  /* Match the theme button sizing so both top buttons align visually */
+  padding: 0.35rem 0.6rem;
   margin: 0 0 0.5rem 0;
-  font-weight: 700;
+  font-size: 1rem;
+  font-weight: 400; /* keep demure weight */
   background: #0066cc;
   color: #fff;
   border-radius: 6px;
+  line-height: 1;
 }
 
 .top-theme {
@@ -410,23 +417,28 @@ html[data-theme="dark"] .collapse-toggle:hover {
 }
 
 /* Theme toggle button: visible primary button like Reset Course */
-.top-theme-btn {
+.btn-primary {
+  background: var(--primary);
+  color: #fff;
+  border: none;
+  border-radius: 6px;
+  cursor: pointer;
+}
+
+.top-new, .top-theme-btn {
   display: inline-block;
   vertical-align: middle;
   margin-left: 0.5rem;
   padding: 0.35rem 0.6rem;
   font-size: 1rem;
-  background: var(--primary);
-  color: var(--button-text);
-  border: none;
-  border-radius: 6px;
-  cursor: pointer;
+  line-height: 1;
 }
-.top-theme-btn[aria-pressed="true"] { background: var(--primary); color: var(--button-text); border-color: transparent; }
 
-/* Hover and focus states for the theme button to match other primary action buttons */
-.top-theme-btn:hover { filter: brightness(0.95); }
-.top-theme-btn:focus { outline: 3px solid rgba(59,130,246,0.18); outline-offset: 2px; }
+/* When buttons have the .btn-primary class they get the primary background/color */
+.top-new.btn-primary:hover, .top-theme-btn.btn-primary:hover,
+.btn-primary:hover { filter: brightness(0.95); }
+.top-new.btn-primary:focus, .top-theme-btn.btn-primary:focus,
+.btn-primary:focus { outline: 3px solid rgba(59,130,246,0.18); outline-offset: 2px; }
 
 /* Buttons layout: stacked on narrow screens, multi-column on wide */
 .buttons {
@@ -436,21 +448,47 @@ html[data-theme="dark"] .collapse-toggle:hover {
   gap: 0.4rem;
 }
 
+/* Next button: on wide screens keep it visually separate (full-width above controls)
+   but on narrow screens, inline with other control buttons to save vertical space */
+.next-btn {
+  display: inline-block;
+}
+
+@media (min-width: 900px) {
+  /* Desktop: show next button as separate (we hide it in the buttons group and place it with layout) */
+  .next-btn { order: -1; margin-bottom: 0.6rem; width: auto; }
+}
+
 @media (max-width: 600px) {
   /* Reduce page padding on small devices */
   body { padding: 0.6rem; }
 
-  /* Make control buttons full-width to be touch-friendly */
+  /* Make control buttons touch-friendly but allow flex layout to control widths */
   .buttons button {
-    display: block;
-    flex: 1 1 100%;
-    width: 100%;
-    margin: 0.35rem 0;
-    font-size: 1.2rem; /* larger tap target text */
-    padding: 0.9rem 1rem; /* bigger touch area */
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    margin: 0.25rem;
+    font-size: 1.1rem; /* slightly larger tap target text */
+    padding: 0.85rem 0.9rem; /* slightly larger touch area */
     min-height: 48px; /* recommended minimum touch target */
     border-radius: 8px;
   }
+
+  /* On phones, keep Next, Start and Reset on the same line to save vertical space */
+  .buttons { display: flex; flex-wrap: nowrap; align-items: center; justify-content: center; }
+  .buttons .next-btn, .buttons #startBtn, .buttons #resetBtn { display: inline-flex; flex: 0 0 auto; width: auto; margin: 0 0.25rem; }
+  /* Make equal-width buttons on mobile */
+  .btn-equal { min-width: 0; flex: 1 1 0; display: inline-flex; align-items: center; justify-content: center; }
+  .btn-equal { padding: 0.85rem 0.9rem; }
+
+
+/* Desktop: prefer full label and allow the Next button to span full width above controls */
+@media (min-width: 900px) {
+  /* Desktop: show equal-width primary action buttons centered on one line */
+  .buttons { display: flex; gap: 0.6rem; justify-content: center; align-items: center; }
+  .btn-equal { flex: 0 0 10rem; display: inline-flex; align-items: center; justify-content: center; }
+}
 
   /* Slightly increase overall base font size on phones */
   body, label, .input-hint, select, input[type="number"], input[type="range"] {
@@ -474,7 +512,7 @@ html[data-theme="dark"] .collapse-toggle:hover {
 
   /* Make the top new button centered on phones */
   /* On phones place theme button at left and Reset Course at right on the same line */
-  .top-new { float: right; margin: 0 0 0.6rem 0; font-size: 1.05rem; padding: 0.5rem 0.85rem; }
+  .top-new { float: right; margin: 0 0 0.6rem 0; font-size: 1.05rem; padding: 0.5rem 0.85rem; min-height: 48px; }
   .top-theme-btn { float: left; margin-left: 0; }
 }
 
@@ -568,4 +606,144 @@ html[data-theme="dark"] .collapse-toggle:hover {
   #stageInstructions #stageTitle { font-size: 1.2rem; }
   #stageInstructions .yard { font-size: 1.2rem; }
   #stageInstructions #stageDetails { font-size: 1rem; }
+}
+
+/* ------------------------------------------------------------------
+   Enforce identical sizing for primary action buttons (Next / Start / Reset)
+   Add a small, high-specificity override at the end so it wins over earlier
+   responsive rules and avoids visual height differences across breakpoints.
+   ------------------------------------------------------------------ */
+.buttons button, .top-new, .top-theme-btn { box-sizing: border-box; }
+
+.buttons .btn-equal,
+.buttons .next-btn,
+.buttons #startBtn,
+.buttons #resetBtn {
+  display: inline-flex !important;
+  align-items: center !important;
+  justify-content: center !important;
+  padding: 0.85rem 0.9rem !important; /* consistent touch area */
+  min-height: 48px; /* recommended minimum touch target */
+  line-height: 1; /* avoid extra height from line-height inheritance */
+  box-sizing: border-box;
+}
+
+/* Desktop: keep equal fixed width but preserve the enforced min-height */
+@media (min-width: 900px) {
+  .buttons .btn-equal,
+  .buttons .next-btn { flex: 0 0 10rem; min-width: 10rem; }
+}
+
+/* Mobile: allow flexible widths but keep equal height */
+@media (max-width: 600px) {
+  .buttons .btn-equal,
+  .buttons .next-btn { flex: 1 1 0; min-width: 0; }
+}
+
+/* Layout for grouped controls: left-controls | action-group | right-controls
+   Action group holds the three primary actions and is centered within .buttons.
+   Provide horizontal breathing room using side gutters on desktop, and
+   allow flexible distribution on mobile while keeping equal widths/heights. */
+.buttons { align-items: center; }
+.buttons > .left-controls,
+.buttons > .right-controls { display: flex; gap: 0.5rem; align-items: center; }
+.buttons > .action-group { display: flex; gap: 0.5rem; align-items: center; margin: 0 0.8rem; }
+
+/* Ensure the action-group is centered across the full width of the container */
+.buttons { justify-content: center; }
+.buttons > .left-controls { margin-right: auto; }
+.buttons > .right-controls { margin-left: auto; }
+
+/* Make the three action buttons identical widths on desktop */
+@media (min-width: 900px) {
+  .action-group .btn-equal { width: 10rem; flex: 0 0 auto; }
+}
+
+/* On small screens allow the three action buttons to share available space equally */
+@media (max-width: 600px) {
+  .action-group { width: 100%; max-width: 560px; }
+  .action-group .btn-equal { flex: 1 1 0; min-width: 0; }
+}
+
+/* Strong mobile overrides to ensure perfect equality and prevent wrapping */
+@media (max-width: 600px) {
+  /* Make the group stretch and force each button to exactly the same box */
+  .buttons > .action-group { display: flex !important; gap: 0.5rem !important; align-items: stretch !important; }
+  .buttons > .action-group > button {
+    flex: 1 1 0 !important;
+    min-width: 0 !important;
+    height: 48px !important;
+    padding-left: 0.6rem !important;
+    padding-right: 0.6rem !important;
+    margin: 0 !important;
+    box-sizing: border-box !important;
+    display: inline-flex !important;
+    align-items: center !important;
+    justify-content: center !important;
+    white-space: nowrap !important; /* prevent label wrapping */
+    overflow: hidden !important;
+    text-overflow: ellipsis !important;
+  }
+}
+
+/* Pixel-perfect alignment: remove per-button margins and set exact heights/box-sizing.
+   Use explicit height so all three buttons line up exactly. Padding is kept only for
+   horizontal space; vertical size is fixed via height. */
+.action-group .btn-equal,
+.action-group .next-btn {
+  margin: 0 !important; /* remove global button margins */
+  box-sizing: border-box !important;
+  vertical-align: middle !important;
+}
+
+/* Mobile: equal flexible widths, fixed height for consistent touch target */
+@media (max-width: 600px) {
+  .action-group .btn-equal,
+  .action-group .next-btn { height: 48px !important; padding-top: 0 !important; padding-bottom: 0 !important; }
+}
+
+/* Desktop: fixed width and slightly taller buttons for visual balance */
+@media (min-width: 900px) {
+  .action-group .btn-equal,
+  .action-group .next-btn { height: 56px !important; padding-top: 0 !important; padding-bottom: 0 !important; }
+}
+
+/* Ensure text is centered within fixed-height buttons */
+.action-group .btn-equal > *,
+.action-group .next-btn > * { line-height: normal; }
+
+/* Increase stage instruction font sizes by 20% (desktop and mobile overrides)
+   Appended at the end to ensure these values win over earlier rules. */
+#stageInstructions #stageTitle { font-size: 1.92rem; }
+#stageInstructions #stageRounds,
+#stageInstructions #stageMeta { font-size: 1.5rem; }
+#stageInstructions #stageDetails { font-size: 1.26rem; }
+#stageInstructions .yard { font-size: 1.68rem; }
+
+@media (max-width: 600px) {
+  /* Scale mobile sizes (existing mobile rules are multiplied by 1.2) */
+  #stageInstructions #stageTitle { font-size: 1.44rem; }
+  #stageInstructions .yard { font-size: 1.44rem; }
+  #stageInstructions #stageDetails { font-size: 1.2rem; }
+  /* Keep rounds/meta proportionally larger on small screens too */
+  #stageInstructions #stageRounds,
+  #stageInstructions #stageMeta { font-size: 1.5rem; }
+}
+
+/* Tighten vertical spacing between the main clock and the primary button row.
+   This reduces the gap so 'Show setup' can fit without forcing the button line
+   off-screen on small devices. Keep touch targets unchanged. */
+.heading-wrap { margin-bottom: 0.5rem; }
+#display { margin: 0.5rem 0 0.6rem 0; }
+.collapse-toggle { margin: 0.25rem 0; }
+.buttons { margin-top: 0.4rem; }
+
+@media (max-width: 600px) {
+  /* Even tighter on phones but keep comfortable spacing for touch */
+  .heading-wrap { margin-bottom: 0.35rem; }
+  #display { margin: 0.35rem 0 0.45rem 0; }
+  .collapse-toggle { margin: 0.15rem 0; }
+  .buttons { margin-top: 0.25rem; }
+  /* Slightly reduce the gap above shots panel too */
+  #shotsPanel { margin-top: 0.5rem; }
 }

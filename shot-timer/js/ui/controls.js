@@ -63,7 +63,34 @@ async function populateDeviceLists() {
 
 export function initControls({ onStart = () => {}, onReset = () => {}, onCalibrate = () => {}, onNewParticipant = () => {} } = {}) {
   const attach = () => {
-    (async () => { try { await populateDeviceLists(); } catch (e) { console.warn('Auto device detection failed:', e); } })();
+    // Detect mobile/touch platforms and avoid automatic device detection there
+    const isMobilePlatform = (() => {
+      try {
+        const ua = navigator.userAgent || '';
+        const isMobileUa = /Mobi|Android|iPhone|iPad|iPod|Opera Mini|IEMobile|WPDesktop/i.test(ua);
+        const prefersCoarse = window.matchMedia && window.matchMedia('(pointer: coarse)').matches;
+        return isMobileUa || prefersCoarse;
+      } catch (e) { return false; }
+    })();
+
+    if (!isMobilePlatform) {
+      (async () => { try { await populateDeviceLists(); } catch (e) { console.warn('Auto device detection failed:', e); } })();
+    } else {
+      // On mobile, hide device selectors and the Detect button to avoid intrusive permission prompts
+      try {
+        const detectBtnEl = document.getElementById('detectBtn'); if (detectBtnEl) detectBtnEl.style.display = 'none';
+        const micSel = document.getElementById('micSelect'); if (micSel && micSel.parentNode) micSel.parentNode.style.display = 'none';
+        const spkSel = document.getElementById('speakerSelect'); if (spkSel && spkSel.parentNode) spkSel.parentNode.style.display = 'none';
+        // Add a small note explaining device selection is handled by the system on mobile
+        const devicesSection = document.getElementById('devices');
+        if (devicesSection) {
+          const note = document.createElement('div');
+          note.className = 'system-output-note input-hint';
+          note.textContent = 'Device detection disabled on mobile. Use your system audio controls to pick microphone or speaker.';
+          devicesSection.appendChild(note);
+        }
+      } catch (e) { /* ignore DOM errors */ }
+    }
 
     // Listen loop state
     let listenRaf = null;
@@ -156,8 +183,15 @@ export function initControls({ onStart = () => {}, onReset = () => {}, onCalibra
         applyZoom(next);
       } catch (e) { console.warn('stepZoom failed', e); }
     }
-    if (uiZoomMinus) uiZoomMinus.addEventListener('click', () => stepZoom(-1));
-    if (uiZoomPlus) uiZoomPlus.addEventListener('click', () => stepZoom(1));
+    if (uiZoomMinus) {
+      uiZoomMinus.addEventListener('click', () => stepZoom(-1));
+      // Add touchstart for better responsiveness on Android/iOS; preventDefault to avoid duplicate click
+      uiZoomMinus.addEventListener('touchstart', (ev) => { try { ev.preventDefault(); stepZoom(-1); } catch (e) {} }, { passive: false });
+    }
+    if (uiZoomPlus) {
+      uiZoomPlus.addEventListener('click', () => stepZoom(1));
+      uiZoomPlus.addEventListener('touchstart', (ev) => { try { ev.preventDefault(); stepZoom(1); } catch (e) {} }, { passive: false });
+    }
 
     // Theme toggle (dark mode) — persist as 'light' or 'dark'
     const themeToggle = document.getElementById('themeToggle');

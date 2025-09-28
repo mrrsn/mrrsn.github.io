@@ -1,6 +1,7 @@
 // js/ui/courseChooser.js
 import { setUiTotalSecondsUI, setUiExpectedShotsUI } from './controls.js';
 import { getShotLog, exportShotsCsv, archiveStageShots, exportParticipantCsv, clearParticipantShots, resetTimer } from '../timer/core.js';
+import { showStatus } from './status.js';
 
 let courses = [];
 
@@ -24,12 +25,7 @@ export async function initCourseChooser() {
   function applyStage(course, stage) {
     setUiTotalSecondsUI(stage.timeSec);
     setUiExpectedShotsUI(stage.shots);
-    const status = document.getElementById('status');
-    if (status) {
-      status.classList.remove('hidden');
-      status.textContent = `Applied ${course.name} — Stage ${stage.id}: ${stage.shots} shots in ${stage.timeSec}s`;
-      setTimeout(() => { status.classList.add('hidden'); }, 3000);
-    }
+  // Stage instructions already display current stage; no popup needed.
     // Populate the large instruction area with separate lines:
     // 1) Stage title (Stage N)
     // 2) "{yards} yards from {startPosition}"
@@ -62,9 +58,9 @@ export async function initCourseChooser() {
       roundsEl.textContent = roundsText;
     }
     if (detailsEl) detailsEl.textContent = stage.notes || '';
-    // Reset next button label (in case it was changed to Save previously)
-    const nextBtnEl = document.getElementById('nextStageBtn');
-    if (nextBtnEl) nextBtnEl.textContent = 'Next Stage in Course';
+  // Reset next button label (in case it was changed to Save previously)
+  const nextBtnEl = document.getElementById('nextStageBtn');
+  if (nextBtnEl) nextBtnEl.textContent = 'Next';
   }
 
   // populate courseSelect
@@ -166,6 +162,7 @@ export async function initCourseChooser() {
   stageSelect.value = String(nextStage.id);
   // trigger apply
   applyStage(course, nextStage);
+  // Stage change — instructions display the current stage so no popup.
     });
   }
 

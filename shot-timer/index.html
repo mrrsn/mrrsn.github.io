@@ -6,8 +6,8 @@
   <link rel="stylesheet" href="style.css">
 </head>
 <body>
-  <button id="resetCourseBtn" class="top-new">Reset Course</button>
-  <button id="themeBtn" class="top-theme-btn" aria-pressed="false" title="Toggle dark mode">🌙</button>
+  <button id="resetCourseBtn" class="top-new btn-primary">Reset Course</button>
+  <button id="themeBtn" class="top-theme-btn btn-primary" aria-pressed="false" title="Toggle dark mode">🌙</button>
   <label class="top-theme" style="margin-left:0.5rem; display:none;">
     <input type="checkbox" id="themeToggle"> Dark mode
   </label>
@@ -89,9 +89,9 @@
       <label>
         UI zoom:
         <div class="ui-zoom-control" aria-live="polite">
-          <button type="button" id="uiZoomMinus" aria-label="Decrease UI zoom">−</button>
+          <button type="button" id="uiZoomMinus" class="btn-primary" aria-label="Decrease UI zoom">−</button>
           <span id="uiZoomValue">100%</span>
-          <button type="button" id="uiZoomPlus" aria-label="Increase UI zoom">+</button>
+          <button type="button" id="uiZoomPlus" class="btn-primary" aria-label="Increase UI zoom">+</button>
         </div>
       </label>
     </section>
@@ -152,19 +152,25 @@
   </div>
 
   <!-- Next stage button sits above the main control buttons on its own row -->
-  <div class="next-row">
-    <button id="nextStageBtn">Next Stage in Course</button>
-  </div>
+  <!-- Next Stage button moved into the main buttons group for responsive layout -->
 
   <!-- -------------------------------------------------------------
        Control buttons
        ------------------------------------------------------------- -->
   <div class="buttons">
-    <button id="detectBtn">Detect Devices</button>
-    <button id="listenBtn">Listen</button>
-    <button id="calibrateBtn">Calibrate Latency</button>
-    <button id="startBtn">Start</button>
-  <button id="resetBtn">Reset Stage</button>
+    <div class="left-controls">
+      <button id="detectBtn" class="btn-primary">Detect Devices</button>
+      <button id="listenBtn">Listen</button>
+      <button id="calibrateBtn" class="btn-primary">Calibrate Latency</button>
+    </div>
+
+    <div class="action-group">
+      <button id="nextStageBtn" class="btn-primary next-btn btn-equal">Next</button>
+      <button id="startBtn" class="btn-primary btn-equal">Start</button>
+      <button id="resetBtn" class="btn-primary btn-equal">Reset</button>
+    </div>
+
+    <div class="right-controls" aria-hidden="true"></div>
   </div>
 
   <!-- Current stage instructions (large, prominent) — moved below the controls per request -->
@@ -183,12 +189,10 @@
        Shots‑detected panel (populated by shotsTable.js)
        ------------------------------------------------------------- -->
   <section id="shotsPanel">
-    <h2>Shots detected</h2>
-    <div id="shotsSummary">Detected shots: <span id="shotsSummaryCount">0</span></div>
+    <h2>Shots detected: <span id="shotsSummaryCount">0</span></h2>
     <table id="shotsTable">
       <thead>
         <tr>
-          <th>#</th>
           <th>Stage</th>
           <th>Time</th>
           <th title="Delta between this shot and the previous shot (ms)">Δ (ms)</th>

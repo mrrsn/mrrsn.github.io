@@ -23,7 +23,6 @@ export function addShotRow(idx, deltaMs, elapsedMs, timestampMs, rms = null) {
       newTable.innerHTML = `
         <thead>
           <tr>
-            <th>#</th>
             <th>Stage</th>
             <th>Time</th>
             <th>Δ (ms)</th>
@@ -54,7 +53,6 @@ export function addShotRow(idx, deltaMs, elapsedMs, timestampMs, rms = null) {
   const deltaStr = (typeof deltaMs === 'number') ? deltaMs.toFixed(1) : '';
   const elapsedStr = (typeof elapsedMs === 'number') ? elapsedMs.toFixed(1) : '';
   row.innerHTML = `
-    <td>${idx + 1}</td>
     <td>Shot ${idx + 1} of ${getExpectedShots()}</td>
     <td>${formatted}</td>
     <td>${deltaStr}</td>
@@ -65,13 +63,20 @@ export function addShotRow(idx, deltaMs, elapsedMs, timestampMs, rms = null) {
   try {
     const stageMs = getTotalSeconds() * 1000;
     if (typeof elapsedMs === 'number' && elapsedMs > stageMs) {
-      row.classList.add('late');
+      // Use the shared warning class and a data attribute to indicate reason
+      row.classList.add('shot-warning');
+      row.setAttribute('data-warning', 'late');
+      row.setAttribute('title', 'Late shot');
+      row.setAttribute('aria-label', 'Late shot');
     }
   } catch (e) {
     // ignore
   }
   if (idx + 1 > getExpectedShots()) {
-    row.classList.add('over-count');
+    row.classList.add('shot-warning');
+    row.setAttribute('data-warning', 'over-count');
+    row.setAttribute('title', 'Extra shot (over expected count)');
+    row.setAttribute('aria-label', 'Extra shot');
   }
   tbody.appendChild(row);
   // update simple summary

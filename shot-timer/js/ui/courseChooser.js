@@ -122,6 +122,13 @@ export async function initCourseChooser() {
       if (!course || !course.stages || course.stages.length === 0) return;
       // If button is currently 'Save', export CSV
       if (nextBtn.textContent === 'Save') {
+        // Archive the final stage's shots before exporting
+        try {
+          archiveStageShots({ courseId: course.id, courseName: course.name, stageId: Number(stageSelect.value) || null });
+        } catch (e) {
+          console.warn('archiveStageShots failed during Save', e);
+        }
+
         const name = prompt('Enter filename (without extension) for participant CSV export', 'participant-results');
         if (!name) return;
         try {

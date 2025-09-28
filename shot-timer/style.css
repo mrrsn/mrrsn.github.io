@@ -76,6 +76,58 @@ h1 {
   margin-top: 0.4rem;
 }
 
+.heading-wrap {
+  text-align: center;
+  clear: both;
+  display: block;
+  position: relative;
+  z-index: 2;
+}
+
+/* Ensure the page header area clears floats so heading-wrap can sit centered */
+.top-new, .top-theme-btn { position: relative; z-index: 3; }
+
+/* Logo above the heading. Keep slightly narrower than the heading text. */
+.logo-wrap {
+  display: grid; /* stack logos in the same grid cell so they occupy layout height */
+  place-items: center;
+  margin-bottom: 0.9rem; /* increased gap so logo doesn't touch heading */
+  width: 15%; /* container width controls image size */
+  margin-left: auto;
+  margin-right: auto;
+}
+.logo {
+  max-width: 100%;
+  height: auto;
+  display: block;
+  grid-area: 1 / 1 / 2 / 2; /* stack logos in same grid cell */
+}
+.light-logo,
+.dark-logo {
+  grid-area: 1 / 1 / 2 / 2;
+  width: 100%;
+  height: auto;
+  opacity: 0;
+  transition: opacity 300ms ease-in-out;
+  will-change: opacity;
+}
+
+/* Show appropriate logo by fading opacity */
+html[data-theme="dark"] .dark-logo { opacity: 1; }
+html[data-theme="dark"] .light-logo { opacity: 0; }
+html:not([data-theme="dark"]) .light-logo { opacity: 1; }
+html:not([data-theme="dark"]) .dark-logo { opacity: 0; }
+
+@media (prefers-color-scheme: dark) {
+  /* If no explicit data-theme is set, prefer dark logo */
+  :root:not([data-theme="dark"]) .dark-logo { opacity: 1; }
+  :root:not([data-theme="dark"]) .light-logo { opacity: 0; }
+}
+
+@media (min-width: 900px) {
+  .logo-wrap { width: 10%; }
+}
+
 /* Countdown */
 #display {
   /* responsive large countdown — scales from phones to desktops */

@@ -1,6 +1,6 @@
 // controls.js — clean single implementation
 import { setTotalSeconds, setExpectedShots, setThreshold, setDebounceMs, setBeepOnShot, getBeepOnShot } from '../timer/config.js';
-import { setOutputDevice, getAudioContext } from '../audio/context.js';
+import { setOutputDevice, getAudioContext, supportsSetSinkId } from '../audio/context.js';
 import { pollDetector, setListenMode } from '../audio/detector.js';
 import { setRmsColumnVisible } from './shotsTable.js';
 
@@ -47,6 +47,17 @@ async function populateDeviceLists() {
   devices.forEach(d => { const opt = document.createElement('option'); opt.value = d.deviceId || ''; opt.textContent = d.label || `${d.kind} (${(d.deviceId||'').slice(0,8)})`; if (d.kind === 'audioinput') micSelect.appendChild(opt); if (d.kind === 'audiooutput') spkSelect.appendChild(opt); });
   if (micSelect.options.length === 0) { const opt = document.createElement('option'); opt.disabled = true; opt.textContent = 'No microphones found'; micSelect.appendChild(opt); }
   if (spkSelect.options.length === 0) { const opt = document.createElement('option'); opt.disabled = true; opt.textContent = 'No speakers found'; spkSelect.appendChild(opt); }
+  // If setSinkId is not supported (iOS Safari, etc.) disable the speaker selector and show a help tip
+  try {
+    if (!supportsSetSinkId()) {
+      spkSelect.disabled = true;
+      const tip = document.createElement('div');
+      tip.id = 'speakerTip';
+      tip.className = 'input-hint';
+      tip.textContent = 'Speaker selection is not supported by this browser. To change output on your device use the system audio controls (Control Center for iPhone: tap the audio output icon to pick Speaker or your Bluetooth device).';
+      spkSelect.parentNode && spkSelect.parentNode.appendChild(tip);
+    }
+  } catch (e) { /* ignore */ }
   if (prevMic) micSelect.value = prevMic; if (prevSpk) spkSelect.value = prevSpk; if (statusEl) { setStatus(`Found ${micSelect.options.length} mic(s) and ${spkSelect.options.length} speaker(s)`, 'success'); setTimeout(clearStatus, 3000); }
 }
 

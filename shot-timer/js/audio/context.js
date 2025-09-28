@@ -47,6 +47,14 @@ export function getAudioContext() {
 }
 
 /**
+ * Returns true if the browser supports setting the output device programmatically
+ * (AudioContext.destination.setSinkId), false otherwise.
+ */
+export function supportsSetSinkId() {
+  return !!(audioCtx && audioCtx.destination && typeof audioCtx.destination.setSinkId === 'function');
+}
+
+/**
  * Force the output device for the *destination* node (Chrome/Edge only).
  */
 export async function setOutputDevice(deviceId) {

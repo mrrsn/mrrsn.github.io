@@ -12,7 +12,11 @@ import { clearParticipantShots } from './timer/core.js';
 // ---------------------------------------------------------------------
 document.addEventListener('DOMContentLoaded', async () => {
   // 1️⃣ Initialise audio (creates AudioContext, selects output device)
-  await initAudio();
+  // Run initAudio asynchronously so slow device enumeration doesn't block UI load.
+  console.debug('initAudio: start (non-blocking)');
+  initAudio()
+    .then(() => console.debug('initAudio: succeeded'))
+    .catch(e => console.warn('initAudio failed (non-blocking):', e));
 
   // 2️⃣ Register the *shot* callback – the detector will call us
   //    whenever the microphone RMS exceeds the user‑defined threshold.

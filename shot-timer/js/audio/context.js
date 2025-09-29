@@ -8,9 +8,15 @@ let outputDeviceId = null;
  */
 export async function initAudio() {
   if (!audioCtx) {
-    audioCtx = new (window.AudioContext || window.webkitAudioContext)({
-      latencyHint: 'interactive'
-    });
+    try {
+      audioCtx = new (window.AudioContext || window.webkitAudioContext)({
+        latencyHint: 'interactive'
+      });
+    } catch (e) {
+      console.warn('initAudio: could not create AudioContext', e);
+      audioCtx = null;
+      return;
+    }
   }
 
   // Populate the speaker selector (UI lives in ui/controls.js)
@@ -23,24 +29,16 @@ export async function initAudio() {
     // confusing behaviour. In that case we leave outputDeviceId as null and
     // let the system (user agent) handle audio routing.
     if (audioCtx && audioCtx.destination && typeof audioCtx.destination.setSinkId === 'function') {
-      if (navigator.mediaDevices && typeof navigator.mediaDevices.enumerateDevices === 'function') {
-        try {
-          const devices = await navigator.mediaDevices.enumerateDevices();
-          speakerSelect.innerHTML = '';
-          devices
-            .filter(d => d.kind === 'audiooutput')
-            .forEach(d => {
-              const opt = document.createElement('option');
-              opt.value = d.deviceId;
-              opt.textContent = d.label || `Speaker (${d.deviceId.slice(0, 8)})`;
-              speakerSelect.appendChild(opt);
-            });
-          outputDeviceId = speakerSelect.value || null;
-        } catch (err) {
-          console.warn('Could not enumerate devices in initAudio:', err);
-        }
-      } else {
-        console.warn('navigator.mediaDevices.enumerateDevices not available; speaker list will remain empty');
+      // Do not enumerate devices during audio initialization. Device
+      // enumeration (which may trigger permission UI on some platforms)
+      // is performed only when the user explicitly requests it via the
+      // Detect button / device scan in the controls UI (populateDeviceLists).
+      // Here, just clear the speaker list so the UI is in a known state.
+      try {
+        speakerSelect.innerHTML = '';
+        outputDeviceId = speakerSelect.value || null;
+      } catch (err) {
+        console.warn('initAudio: could not prepare speakerSelect:', err);
       }
     } else {
       // Platform doesn't support setSinkId — avoid enumerating/attempting to switch
@@ -72,8 +70,6 @@ export function supportsSetSinkId() {
  */
 export async function setOutputDevice(deviceId) {
   if (!audioCtx || !audioCtx.destination || typeof audioCtx.destination.setSinkId !== 'function') {
-    // Platform does not support programmatic sink selection — ignore request
-    // and keep using the system default.
     console.warn('setOutputDevice: setSinkId not supported on this platform; ignoring setOutputDevice request');
     return;
   }

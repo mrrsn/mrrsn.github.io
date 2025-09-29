@@ -18,14 +18,27 @@ function appendMultilineAsParagraphs(el, text) {
 }
 
 export async function initCourseChooser() {
+  console.debug('initCourseChooser: start');
   // For now we only expect a single course file; load the folder listing would be future work
   try {
-    const res = await fetch('./data/courses/fbi-pistol-qualification.json');
-    if (!res.ok) throw new Error('Could not fetch course JSON');
+    console.debug('initCourseChooser: about to fetch course JSON');
+    // Use AbortController to avoid hanging forever on a stalled fetch.
+    const controller = new AbortController();
+    const timeoutMs = 5000; // 5s timeout
+    const to = setTimeout(() => controller.abort(), timeoutMs);
+    let res;
+    try {
+      res = await fetch('./data/courses/fbi-pistol-qualification.json', { signal: controller.signal });
+    } finally {
+      clearTimeout(to);
+    }
+    if (!res || !res.ok) throw new Error('Could not fetch course JSON');
     const json = await res.json();
     courses = [json];
+    console.debug('initCourseChooser: fetched and parsed course JSON', json && json.id ? json.id : '(no id)');
   } catch (e) {
     console.warn('courseChooser: failed to load courses:', e);
+    try { showStatus('Failed to load course data. Check that ./data/courses is accessible.', 'error'); } catch (err) {}
     return;
   }
 
@@ -122,6 +135,7 @@ export async function initCourseChooser() {
   });
 
   courseSelect.addEventListener('change', () => {
+    console.debug('courseSelect: change ->', courseSelect.value);
     const sel = courseSelect.value;
     const course = courses.find(c => c.id === sel);
     // clear stages
@@ -152,6 +166,7 @@ export async function initCourseChooser() {
 
   // Auto-apply when the user selects a stage
   stageSelect.addEventListener('change', () => {
+    console.debug('stageSelect: change ->', stageSelect.value);
     const courseId = courseSelect.value;
     const sel = stageSelect.value;
     const course = courses.find(c => c.id === courseId);

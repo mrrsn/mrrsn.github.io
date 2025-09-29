@@ -8,6 +8,7 @@ let dataArray = null;
 let shotCallback = null;   // will be set by core timer
 let lastShotTs = 0;        // timestamp of last accepted shot (ms)
 let _suppressShots = false; // when true, don't call shotCallback (used for Listen mode)
+let __initMicInProgress = false;
 
 /**
  * Public API – register the function that should be called
@@ -26,10 +27,16 @@ export function setShotCallback(cb) {
  */
 async function initMic() {
   if (micStream) return; // already initialized
-
+  if (__initMicInProgress) { console.debug('initMic: already in progress'); return; }
+  __initMicInProgress = true;
   const constraints = { audio: true };
   console.debug('initMic: requesting microphone permission');
   try {
+    if (!navigator.mediaDevices || typeof navigator.mediaDevices.getUserMedia !== 'function') {
+      console.error('initMic: navigator.mediaDevices.getUserMedia not available');
+      const statusEl = document.getElementById('status'); if (statusEl) statusEl.textContent = 'Microphone API not available.';
+      return;
+    }
     micStream = await navigator.mediaDevices.getUserMedia(constraints);
     console.debug('initMic: getUserMedia succeeded');
   } catch (err) {
@@ -43,7 +50,15 @@ async function initMic() {
     console.warn('initMic: no AudioContext available from getAudioContext()');
     // still continue — getAudioContext should usually be set by initAudio
   }
-  const source = ctx.createMediaStreamSource(micStream);
+  let source = null;
+  try {
+    source = ctx.createMediaStreamSource(micStream);
+  } catch (e) {
+    console.warn('initMic: createMediaStreamSource failed', e);
+    try { micStream.getTracks().forEach(t => { try { t.stop(); } catch (err) {} }); } catch (er) {}
+    micStream = null;
+    return;
+  }
   analyser = ctx.createAnalyser();
   // keep FFT small for low latency but ensure buffer size is meaningful
   analyser.fftSize = 256;               // small FFT → low latency
@@ -51,6 +66,7 @@ async function initMic() {
   dataArray = new Uint8Array(bufLen);
   source.connect(analyser);
   console.debug('initMic: analyser created, fftSize=', analyser.fftSize, 'bufferLen=', dataArray.length);
+  __initMicInProgress = false;
 }
 
 /**
@@ -135,5 +151,6 @@ export function stopMic() {
   try { analyser = null; dataArray = null; } catch (e) { /* ignore */ }
   _suppressShots = false;
   lastShotTs = 0;
+  __initMicInProgress = false;
   console.debug('detector: stopMic — microphone stream released');
 }

@@ -8,7 +8,13 @@ import { playBeep } from '../audio/beep.js';
 import { formatTime } from '../timer/utils.js';
 
 const $ = (s) => document.querySelector(s);
+// Safe element getter: returns null instead of throwing; useful in defensive code
+function getEl(id) { try { return document.getElementById(id); } catch (e) { return null; } }
+// Guards to avoid re-entrancy and duplicate operations
+let __populateDevicesInProgress = false;
+let __isListening = false;
 let __deviceChangeHandlerAdded = false;
+let __autoDeviceAllowed = false;
 
 function setStatus(msg, type = '') {
   const el = document.getElementById('status');
@@ -44,7 +50,10 @@ async function requestMicPermission() {
 
 async function populateDeviceLists() {
   if (!navigator.mediaDevices || !navigator.mediaDevices.enumerateDevices) return;
-  const allowed = await requestMicPermission(); if (!allowed) return;
+  if (__populateDevicesInProgress) { console.debug('populateDeviceLists: already in progress — skipping'); return; }
+  __populateDevicesInProgress = true;
+  console.debug('populateDeviceLists: start');
+  const allowed = await requestMicPermission(); if (!allowed) { console.debug('populateDeviceLists: permission denied'); __populateDevicesInProgress = false; return; }
   const micSelect = document.getElementById('micSelect');
   const spkSelect = document.getElementById('speakerSelect');
   if (!micSelect || !spkSelect) return;
@@ -53,9 +62,17 @@ async function populateDeviceLists() {
   const statusEl = document.getElementById('status'); if (statusEl) { statusEl.textContent = 'Scanning devices'; const spin = document.createElement('span'); spin.className = 'spinner'; statusEl.appendChild(spin); }
   micSelect.innerHTML = ''; spkSelect.innerHTML = '';
   let devices = [];
-  try { devices = await navigator.mediaDevices.enumerateDevices(); }
-  catch (e) { if (detectBtn) detectBtn.disabled = false; const opt = document.createElement('option'); opt.disabled = true; opt.textContent = 'Could not enumerate devices'; micSelect.appendChild(opt); spkSelect.appendChild(opt.cloneNode(true)); if (statusEl) setStatus('Could not enumerate audio devices. Check microphone permission.', 'error'); return; }
+  try {
+    console.debug('populateDeviceLists: enumerating devices');
+    devices = await navigator.mediaDevices.enumerateDevices();
+  }
+  catch (e) {
+    console.warn('populateDeviceLists: enumerateDevices failed', e);
+    if (detectBtn) detectBtn.disabled = false;
+    const opt = document.createElement('option'); opt.disabled = true; opt.textContent = 'Could not enumerate devices'; micSelect.appendChild(opt); spkSelect.appendChild(opt.cloneNode(true)); if (statusEl) setStatus('Could not enumerate audio devices. Check microphone permission.', 'error'); return;
+  }
   finally { if (detectBtn) detectBtn.disabled = false; }
+  __populateDevicesInProgress = false;
   devices.forEach(d => {
     const opt = document.createElement('option');
     opt.value = d.deviceId || '';
@@ -77,6 +94,7 @@ async function populateDeviceLists() {
     }
   } catch (e) { /* ignore */ }
   if (prevMic) micSelect.value = prevMic; if (prevSpk) spkSelect.value = prevSpk; if (statusEl) { setStatus(`Found ${micSelect.options.length} mic(s) and ${spkSelect.options.length} speaker(s)`, 'success'); setTimeout(clearStatus, 3000); }
+  console.debug('populateDeviceLists: finished', { mics: micSelect.options.length, speakers: spkSelect.options.length });
 }
 
 export function initControls({ onStart = () => {}, onCalibrate = () => {}, onNewParticipant = () => {} } = {}) {
@@ -94,8 +112,13 @@ export function initControls({ onStart = () => {}, onCalibrate = () => {}, onNew
     // On desktop-like platforms attempt to auto-detect devices. On mobile or
     // when programmatic output switching isn't available, hide selectors and
     // defer detection to explicit user action.
+    // Avoid automatic device detection on load — this can trigger
+    // getUserMedia or enumerateDevices and block/require permission during startup.
+    // Instead, show the Detect button and let users opt-in to scanning devices.
     if (!isMobilePlatform && supportsSetSinkId()) {
-      (async () => { try { await populateDeviceLists(); } catch (e) { console.warn('Auto device detection failed:', e); } })();
+      try {
+        const detectBtnEl = document.getElementById('detectBtn'); if (detectBtnEl) detectBtnEl.style.display = '';
+      } catch (e) {}
     } else {
       try {
         const detectBtnEl = document.getElementById('detectBtn'); if (detectBtnEl) detectBtnEl.style.display = 'none';
@@ -116,12 +139,13 @@ export function initControls({ onStart = () => {}, onCalibrate = () => {}, onNew
       } catch (e) { /* ignore DOM errors */ }
     }
 
-    // Listen loop state
-    let listenRaf = null;
-    const listenBtn = $('#listenBtn');
+  // Listen loop state
+  let listenRaf = null;
+  const listenBtn = getEl('listenBtn');
 
     async function startListening() {
-      if (listenRaf) return;
+      if (__isListening || listenRaf) return;
+      __isListening = true;
       try { const ctx = getAudioContext(); if (ctx && ctx.state === 'suspended' && typeof ctx.resume === 'function') await ctx.resume(); } catch (e) { /* ignore */ }
       try { setListenMode(true); } catch (e) { console.warn('Could not set Listen mode:', e); }
         // indicate listening via Stop button animation instead of a status message
@@ -145,10 +169,29 @@ export function initControls({ onStart = () => {}, onCalibrate = () => {}, onNew
         listenRaf = requestAnimationFrame(loop);
       }
       listenRaf = requestAnimationFrame(loop);
-  if (listenBtn) listenBtn.textContent = 'Stop';
+      if (listenBtn) listenBtn.textContent = 'Stop';
     }
 
-  function stopListening() { try { if (listenRaf) { cancelAnimationFrame(listenRaf); listenRaf = null; if (listenBtn) listenBtn.textContent = 'Listen'; } try { setListenMode(false); } catch (e) { console.warn('Could not clear Listen mode', e); } try { stopMic(); } catch (e) { console.warn('stopListening: stopMic failed', e); } clearStatus(); const stopBtnEl = document.getElementById('stopBtn'); if (stopBtnEl) stopBtnEl.classList.remove('btn-anim'); } catch (err) { console.warn('stopListening: unexpected error', err); } finally { try { stopTimer(); } catch (e) { /* ignore */ } } }
+  function stopListening() { 
+    try {
+      if (listenRaf) {
+        cancelAnimationFrame(listenRaf);
+        listenRaf = null;
+        if (listenBtn) listenBtn.textContent = 'Listen';
+      }
+      try { setListenMode(false); } catch (e) { console.warn('Could not clear Listen mode', e); }
+      try { stopMic(); } catch (e) { console.warn('stopListening: stopMic failed', e); }
+      __isListening = false;
+      clearStatus();
+      const stopBtnEl = document.getElementById('stopBtn'); if (stopBtnEl) stopBtnEl.classList.remove('btn-anim');
+    } catch (err) {
+      console.warn('stopListening: unexpected error', err);
+    }
+    // Note: do NOT call stopTimer() here. stopTimer() dispatches the
+    // 'timerStopped' event which may cause UI handlers to call stopListening()
+    // again, creating a recursion. The caller should invoke stopTimer() when
+    // they intend to stop the countdown as well as listening.
+  }
 
   // Timer/interaction state
   let isTimerActive = false; // true when the stage countdown is actively running
@@ -194,10 +237,45 @@ export function initControls({ onStart = () => {}, onCalibrate = () => {}, onNew
     try {
       const courseSel = document.getElementById('courseSelect');
       const stageSel = document.getElementById('stageSelect');
+      // If nextStageBtn isn't present, nothing to hide/show
+      const _nextBtn = nextStageBtn;
+      function detachNextButton() {
+        try {
+          if (!_nextBtn || nextStageBtnDetached) return;
+          nextStageBtnParent = _nextBtn.parentNode;
+          if (nextStageBtnParent) {
+            nextStageBtnNextSibling = _nextBtn.nextSibling;
+            nextStageBtnParent.removeChild(_nextBtn);
+            nextStageBtnDetached = true;
+            console.debug('Next button detached from DOM');
+          }
+        } catch (e) { console.warn('detachNextButton failed', e); }
+      }
+      function restoreNextButton() {
+        try {
+          if (!_nextBtn || !nextStageBtnDetached) return;
+          if (nextStageBtnParent) {
+            if (nextStageBtnNextSibling && nextStageBtnNextSibling.parentNode === nextStageBtnParent) nextStageBtnParent.insertBefore(_nextBtn, nextStageBtnNextSibling);
+            else nextStageBtnParent.appendChild(_nextBtn);
+            nextStageBtnDetached = false;
+            nextStageBtnParent = null;
+            nextStageBtnNextSibling = null;
+            console.debug('Next button restored to DOM');
+          }
+        } catch (e) { console.warn('restoreNextButton failed', e); }
+      }
       // If the course UI isn't present, allow normal behavior
-      if (!courseSel || !stageSel) { setStartStopEnabled(true); return; }
+      if (!courseSel || !stageSel) { 
+        try { detachNextButton(); } catch (e) {}
+        setStartStopEnabled(true); 
+        return; 
+      }
       // If no course chosen, allow Start/Stop
-      if (!courseSel.value) { setStartStopEnabled(true); return; }
+      if (!courseSel.value) { 
+        try { detachNextButton(); } catch (e) {}
+        setStartStopEnabled(true); 
+        return; 
+      }
       // If a stage is selected and it's not the scoring pseudo-stage, enable buttons
       const sel = stageSel.value;
       const onStage = Boolean(sel) && sel !== 'scoring';
@@ -207,12 +285,15 @@ export function initControls({ onStart = () => {}, onCalibrate = () => {}, onNew
       // - If we're on a numeric stage and the timer is active, disable Next until Stop is clicked.
       // - Otherwise enable Next and remove pulse.
       if (sel === 'scoring') {
+        try { restoreNextButton(); } catch (e) {}
         setNextEnabled(true);
         setNextPulse(true);
       } else if (onStage && isTimerActive) {
+        try { restoreNextButton(); } catch (e) {}
         setNextEnabled(false);
         setNextPulse(false);
       } else {
+        try { restoreNextButton(); } catch (e) {}
         setNextEnabled(true);
         setNextPulse(false);
       }
@@ -222,11 +303,26 @@ export function initControls({ onStart = () => {}, onCalibrate = () => {}, onNew
         try { stopListening(); } catch (e) {}
         try { stopMic(); } catch (e) {}
         try { stopTimer(); } catch (e) {}
+        // Ensure UI stays disabled when there is no stage selected. Calling
+        // stopTimer() above may dispatch 'timerStopped' which (in other
+        // contexts) enables the Stop button. Force both Start and Stop to
+        // be disabled for the 'no stage' state so the UI is consistent.
+        try { setStartStopEnabled(false, false); } catch (e) {}
       }
     } catch (e) { /* ignore */ }
   }
 
-    if (navigator.mediaDevices && !__deviceChangeHandlerAdded) { navigator.mediaDevices.addEventListener('devicechange', async () => { try { await populateDeviceLists(); } catch (e) { console.warn('devicechange handler failed', e); } }); __deviceChangeHandlerAdded = true; }
+    if (navigator.mediaDevices && !__deviceChangeHandlerAdded) {
+      navigator.mediaDevices.addEventListener('devicechange', async () => {
+        try {
+          console.debug('devicechange event');
+          if (!__autoDeviceAllowed) { console.debug('devicechange: auto device scan not allowed by user'); return; } // only auto-refresh if user previously allowed detection
+          console.debug('devicechange: auto device scan allowed; calling populateDeviceLists');
+          await populateDeviceLists();
+        } catch (e) { console.warn('devicechange handler failed', e); }
+      });
+      __deviceChangeHandlerAdded = true;
+    }
 
     // Inputs
     const totalSecInput   = document.getElementById('totalSecInput');
@@ -387,7 +483,16 @@ export function initControls({ onStart = () => {}, onCalibrate = () => {}, onNew
     const nextStageBtn = document.getElementById('nextStageBtn');
     const calibrateBtn = $('#calibrateBtn');
     const detectBtn = $('#detectBtn');
-    const resetCourseBtn = $('#resetCourseBtn');
+    const resetCourseBtn = document.getElementById('resetCourseBtn');
+
+  // Track detached Next button so we can remove it from DOM when no course is
+  // selected (keeps DOM simpler and prevents focus/tab stops). We store its
+  // original parent and nextSibling to restore it later when a course is
+  // selected again.
+  let nextStageBtnParent = null;
+  let nextStageBtnNextSibling = null;
+  let nextStageBtnDetached = false;
+  const actionGroup = document.querySelector('.action-group');
 
   // Pending randomized start timer (ms)
   let startDelayTimer = null;
@@ -405,7 +510,7 @@ export function initControls({ onStart = () => {}, onCalibrate = () => {}, onNew
   if (startBtn) startBtn.addEventListener('click', async () => {
     // Visual feedback for user's press
     transientPress(startBtn);
-    try { stopListening(); setListenMode(false); } catch (err) {}
+  try { stopListening(); setListenMode(false); } catch (err) {}
     // If we're permitted to repeat the stage (after a Stop), ensure microphone
     // permission / device is available before starting the pre-start sequence.
     if (canRepeatStage && !isTimerActive) {
@@ -427,8 +532,8 @@ export function initControls({ onStart = () => {}, onCalibrate = () => {}, onNew
     try { if (startBtn.classList.contains('running')) { try { resetTimer(); } catch (e) {} startBtn.classList.remove('running'); startBtn.classList.remove('btn-anim'); return; } } catch (e) {}
     // If a previous run is active, reset it first so Start acts like the old Reset
     try { resetTimer(); } catch (e) { /* ignore */ }
-    // Prevent double-starts: disable the button while waiting for the random delay
-    try { startBtn.disabled = true; } catch (e) {}
+  // Prevent double-starts: disable the button while waiting for the random delay
+  try { startBtn.disabled = true; } catch (e) {}
   // Random pre-start between 1 and 3 seconds. We'll show a red countdown on
   // the main clock counting down the random time (rocket-launch style), then
   // play the beep and start the actual stage countdown.
@@ -460,10 +565,11 @@ export function initControls({ onStart = () => {}, onCalibrate = () => {}, onNew
     // Visual feedback for user's press
     transientPress(stopBtn);
     // Stop listening and cancel any pending pre-start; do not reset recorded shots
-    try { stopListening(); } catch (e) { /* ignore */ }
-    try { stopMic(); } catch (e) { /* ignore */ }
-    try { stopTimer(); } catch (e) { /* ignore */ }
-    clearPendingStart();
+  try { stopListening(); } catch (e) { /* ignore */ }
+  try { stopMic(); } catch (e) { /* ignore */ }
+  try { stopTimer(); } catch (e) { /* ignore */ }
+  // Ensure any pending pre-start timer is cleared when user hits Stop
+  try { clearPendingStart(); } catch (e) {}
   // Re-enable Start and disable Stop so only Start is active (user may repeat)
   try { setStartStopEnabled(true, false); } catch (e) {}
     // clear any running/animation states — do not clear recorded shots
@@ -561,7 +667,10 @@ export function initControls({ onStart = () => {}, onCalibrate = () => {}, onNew
     if (calibrateBtn) calibrateBtn.addEventListener('click', () => { clearPendingStart(); if (typeof onCalibrate === 'function') onCalibrate(); });
 
     if (listenBtn) listenBtn.addEventListener('click', async () => { if (listenBtn.textContent === 'Listen') await startListening(); else stopListening(); });
-    if (detectBtn) detectBtn.addEventListener('click', async () => { await populateDeviceLists(); });
+  if (detectBtn) detectBtn.addEventListener('click', async () => { 
+    try { __autoDeviceAllowed = true; await populateDeviceLists(); } catch (e) { console.warn('Detect click failed', e); }
+  });
+  if (detectBtn) detectBtn.addEventListener('click', () => console.debug('Detect button clicked; user allowed auto-detection')); 
 
     // Show/hide setup buttons based on whether the collapsed setup area is expanded
     function updateSetupButtonsVisibility() {
@@ -577,6 +686,8 @@ export function initControls({ onStart = () => {}, onCalibrate = () => {}, onNew
     // if a collapse toggle exists, update on click
     const collapseToggle = document.getElementById('collapseToggle');
     if (collapseToggle) collapseToggle.addEventListener('click', () => { setTimeout(updateSetupButtonsVisibility, 50); });
+    // Clean up on page unload to avoid dangling timers/animation frames when navigating away
+    try { window.addEventListener('beforeunload', () => { try { clearPendingStart(); stopListening(); } catch (e) {} }); } catch (e) {}
   };
   if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', attach); else attach();
 }

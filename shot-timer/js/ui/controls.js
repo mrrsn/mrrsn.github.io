@@ -1,6 +1,6 @@
 // controls.js — clean single implementation
 import { setTotalSeconds, setExpectedShots, setThreshold, setDebounceMs, setBeepOnShot, getBeepOnShot } from '../timer/config.js';
-import { resetTimer, stopTimer } from '../timer/core.js';
+import { resetTimer, stopTimer, incrementStageAttempt, setStageContext } from '../timer/core.js';
 import { setOutputDevice, getAudioContext, supportsSetSinkId } from '../audio/context.js';
 import { pollDetector, setListenMode, stopMic } from '../audio/detector.js';
 import { setRmsColumnVisible } from './shotsTable.js';
@@ -152,6 +152,7 @@ export function initControls({ onStart = () => {}, onCalibrate = () => {}, onNew
 
   // Timer/interaction state
   let isTimerActive = false; // true when the stage countdown is actively running
+  let canRepeatStage = false; // true after a stop/finish so the user may re-run the stage
 
   // Enable or disable Start/Stop controls depending on course/stage selection
   // and timer state. Backwards compatible: if called with a single boolean
@@ -405,6 +406,23 @@ export function initControls({ onStart = () => {}, onCalibrate = () => {}, onNew
     // Visual feedback for user's press
     transientPress(startBtn);
     try { stopListening(); setListenMode(false); } catch (err) {}
+    // If we're permitted to repeat the stage (after a Stop), ensure microphone
+    // permission / device is available before starting the pre-start sequence.
+    if (canRepeatStage && !isTimerActive) {
+      // user intent: repeating the stage — re-acquire mic before starting
+      const ok = await requestMicPermission();
+      if (!ok) {
+        // leave UI in stopped state; inform user
+        try { setStatus('Microphone required to repeat stage. Start cancelled.', 'error'); } catch (e) {}
+        return;
+      }
+      // Increment the attempt count so the saved label becomes 2a/2b etc.
+      try { incrementStageAttempt(); } catch (e) {}
+      // Refresh stage context so the timer/core uses the updated attempt label (safety)
+      try { setStageContext({}); } catch (e) {}
+      // Clear the repeat flag; we'll start a fresh run now
+      canRepeatStage = false;
+    }
     // If Start was already in a running state, treat as Reset and clear running indicator
     try { if (startBtn.classList.contains('running')) { try { resetTimer(); } catch (e) {} startBtn.classList.remove('running'); startBtn.classList.remove('btn-anim'); return; } } catch (e) {}
     // If a previous run is active, reset it first so Start acts like the old Reset
@@ -446,14 +464,16 @@ export function initControls({ onStart = () => {}, onCalibrate = () => {}, onNew
     try { stopMic(); } catch (e) { /* ignore */ }
     try { stopTimer(); } catch (e) { /* ignore */ }
     clearPendingStart();
-    // Re-enable start button if it was disabled
-    try { if (startBtn) startBtn.disabled = false; } catch (e) {}
+  // Re-enable Start and disable Stop so only Start is active (user may repeat)
+  try { setStartStopEnabled(true, false); } catch (e) {}
     // clear any running/animation states — do not clear recorded shots
     try { if (startBtn) { startBtn.classList.remove('running'); startBtn.classList.remove('btn-anim'); } } catch (e) {}
     try { if (stopBtn) stopBtn.classList.remove('btn-anim'); } catch (e) {}
     // After stopping a stage explicitly, mark timer inactive and animate Next to indicate progression
     try { isTimerActive = false; } catch (e) {}
     try { setNextEnabled(true); setNextPulse(true); } catch (e) {}
+    // Allow the user to repeat this stage; the Start handler will re-acquire mic
+    try { canRepeatStage = true; } catch (e) {}
   });
   // Animate Next button when clicked; controls.js doesn't handle advancing — courseChooser will — but visual feedback is useful
   if (nextStageBtn) {
@@ -502,6 +522,8 @@ export function initControls({ onStart = () => {}, onCalibrate = () => {}, onNew
       // After natural finish, Start should be disabled to avoid accidental extra time,
       // but Stop should be enabled so user can clear listening if needed.
       try { setStartStopEnabled(false, true); } catch (e) {}
+    // Allow repeating the stage (user may click Stop then Start to repeat)
+    try { canRepeatStage = true; } catch (e) {}
   });
 
   // When a stage starts, animate only Stop; remove Start animation
@@ -532,7 +554,8 @@ export function initControls({ onStart = () => {}, onCalibrate = () => {}, onNew
       try { setNextEnabled(true); setNextPulse(true); } catch (e) {}
       // When stopped by the user, allow Start to remain disabled (so they explicitly
       // advance using Next), but ensure Stop is enabled so audio can be managed.
-      try { setStartStopEnabled(false, true); } catch (e) {}
+    try { setStartStopEnabled(false, true); } catch (e) {}
+    try { canRepeatStage = true; } catch (e) {}
   });
   if (resetCourseBtn) resetCourseBtn.addEventListener('click', () => { clearPendingStart(); if (typeof onNewParticipant === 'function') onNewParticipant(); });
     if (calibrateBtn) calibrateBtn.addEventListener('click', () => { clearPendingStart(); if (typeof onCalibrate === 'function') onCalibrate(); });

@@ -1,6 +1,6 @@
 // js/ui/courseChooser.js
 import { setUiTotalSecondsUI, setUiExpectedShotsUI } from './controls.js';
-import { getShotLog, exportShotsCsv, archiveStageShots, exportParticipantCsv, clearParticipantShots, resetTimer } from '../timer/core.js';
+import { getShotLog, exportShotsCsv, archiveStageShots, exportParticipantCsv, clearParticipantShots, resetTimer, setStageContext, getStageAttemptLabel } from '../timer/core.js';
 import { showStatus } from './status.js';
 
 let courses = [];
@@ -37,6 +37,8 @@ export async function initCourseChooser() {
   function applyStage(course, stage) {
     setUiTotalSecondsUI(stage.timeSec);
     setUiExpectedShotsUI(stage.shots);
+    // Inform timer/core of the current stage context so attempts can be tracked
+    try { setStageContext({ courseId: course.id, courseName: course.name, stageId: stage.id }); } catch (e) {}
   // Stage instructions already display current stage; no popup needed.
     // Populate the large instruction area with separate lines:
     // 1) Stage title (Stage N)
@@ -175,7 +177,7 @@ export async function initCourseChooser() {
       if (nextBtn.textContent === 'Save') {
         // Archive the final stage's shots before exporting
         try {
-          archiveStageShots({ courseId: course.id, courseName: course.name, stageId: Number(stageSelect.value) || null });
+            archiveStageShots({ courseId: course.id, courseName: course.name, stageId: getStageAttemptLabel({ courseId: course.id, stageId: Number(stageSelect.value) || null }) || null });
         } catch (e) {
           console.warn('archiveStageShots failed during Save', e);
         }
@@ -218,7 +220,7 @@ export async function initCourseChooser() {
       if (idx === course.stages.length - 1) {
         // archive current stage shots into participant store
         try {
-          archiveStageShots({ courseId: course.id, courseName: course.name, stageId: Number(stageSelect.value) || null });
+            archiveStageShots({ courseId: course.id, courseName: course.name, stageId: getStageAttemptLabel({ courseId: course.id, stageId: Number(stageSelect.value) || null }) || null });
         } catch (e) {
           console.warn('archiveStageShots failed', e);
         }
@@ -236,7 +238,7 @@ export async function initCourseChooser() {
       const nextStage = course.stages[nextIdx];
       // before advancing archive current stage shots into participant store
       try {
-        archiveStageShots({ courseId: course.id, courseName: course.name, stageId: Number(stageSelect.value) || null });
+        archiveStageShots({ courseId: course.id, courseName: course.name, stageId: getStageAttemptLabel({ courseId: course.id, stageId: Number(stageSelect.value) || null }) || null });
       } catch (e) {
         console.warn('archiveStageShots failed', e);
       }

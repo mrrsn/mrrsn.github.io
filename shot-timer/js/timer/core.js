@@ -13,6 +13,38 @@ let shotLog = [];           // array of { idx, timestampMs }
 let participantShots = [];  // flattened shots for the current participant across stages
 let timerFinished = false;  // becomes true once countdown reaches zero
 let acceptShots = false;    // whether incoming shot events should be recorded
+// Track attempt counts per stage so repeated runs can be labeled (2, 2a, 2b...)
+const _attempts = {}; // key -> count (1 = first attempt, 2 = first repeat -> 'a')
+let _currentStageKey = null; // string key for current stage context
+
+function _makeKey(courseId, stageId) {
+  return `${courseId || ''}:${stageId != null ? String(stageId) : ''}`;
+}
+
+export function setStageContext({ courseId = '', courseName = '', stageId = null } = {}) {
+  _currentStageKey = _makeKey(courseId, stageId);
+  if (!_attempts[_currentStageKey]) _attempts[_currentStageKey] = 1; // first attempt
+}
+
+export function incrementStageAttempt() {
+  if (!_currentStageKey) return 1;
+  _attempts[_currentStageKey] = (_attempts[_currentStageKey] || 1) + 1;
+  return _attempts[_currentStageKey];
+}
+
+export function getStageAttemptLabel({ courseId = '', stageId = null } = {}) {
+  // If courseId/stageId are provided prefer them, otherwise use current context
+  const key = (courseId || stageId != null) ? _makeKey(courseId, stageId) : _currentStageKey;
+  if (!key) return stageId != null ? String(stageId) : '';
+  const parts = key.split(':');
+  const sid = parts[1] || '';
+  const count = _attempts[key] || 1;
+  if (!sid) return '';
+  if (count <= 1) return sid;
+  // count 2 -> 'a', 3 -> 'b', etc.
+  const letter = String.fromCharCode('a'.charCodeAt(0) + (count - 2));
+  return `${sid}${letter}`;
+}
 
 function updateDisplay(remainingMs) {
   const el = document.getElementById('display');

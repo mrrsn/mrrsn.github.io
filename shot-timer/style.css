@@ -138,6 +138,14 @@ html:not([data-theme="dark"]) .dark-logo { opacity: 0; }
   line-height: 1;
 }
 
+/* Pre-start visual: make the clock red and slightly larger to mimic a rocket
+   launch countdown. Applied via JS by adding the .prestart class to the #display. */
+#display.prestart {
+  color: #ff2d2d; /* vivid red */
+  text-shadow: 0 2px 8px rgba(255,45,45,0.25);
+  transform: scale(1.06);
+}
+
 /* Sections – give a little vertical spacing */
 section {
   margin: 1rem 0;
@@ -236,7 +244,6 @@ button {
 #detectBtn    { background: var(--primary); color: #fff; }
 #calibrateBtn { background: var(--accent); color: #fff; }
 #startBtn     { background: var(--accent); color: #fff; }
-#resetBtn     { background: var(--danger); color: #fff; }
 
 /* Shots table */
 #shotsPanel {
@@ -455,13 +462,14 @@ html[data-theme="dark"] .collapse-toggle:hover {
 }
 
 @media (min-width: 900px) {
-  /* Desktop: show next button as separate (we hide it in the buttons group and place it with layout) */
-  .next-btn { order: -1; margin-bottom: 0.6rem; width: auto; }
+  /* Desktop: show next button as separate (visual spacing rules) */
+  .next-btn { margin-bottom: 0.6rem; width: auto; }
 }
 
 @media (max-width: 600px) {
   /* Reduce page padding on small devices */
   body { padding: 0.6rem; }
+
 
   /* Make control buttons touch-friendly but allow flex layout to control widths */
   .buttons button {
@@ -477,7 +485,7 @@ html[data-theme="dark"] .collapse-toggle:hover {
 
   /* On phones, keep Next, Start and Reset on the same line to save vertical space */
   .buttons { display: flex; flex-wrap: nowrap; align-items: center; justify-content: center; }
-  .buttons .next-btn, .buttons #startBtn, .buttons #resetBtn { display: inline-flex; flex: 0 0 auto; width: auto; margin: 0 0.25rem; }
+  .buttons .next-btn, .buttons #startBtn { display: inline-flex; flex: 0 0 auto; width: auto; margin: 0 0.25rem; }
   /* Make equal-width buttons on mobile */
   .btn-equal { min-width: 0; flex: 1 1 0; display: inline-flex; align-items: center; justify-content: center; }
   .btn-equal { padding: 0.85rem 0.9rem; }
@@ -617,8 +625,7 @@ html[data-theme="dark"] .collapse-toggle:hover {
 
 .buttons .btn-equal,
 .buttons .next-btn,
-.buttons #startBtn,
-.buttons #resetBtn {
+.buttons #startBtn {
   display: inline-flex !important;
   align-items: center !important;
   justify-content: center !important;

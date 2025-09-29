@@ -1,8 +1,11 @@
 // controls.js — clean single implementation
 import { setTotalSeconds, setExpectedShots, setThreshold, setDebounceMs, setBeepOnShot, getBeepOnShot } from '../timer/config.js';
+import { resetTimer } from '../timer/core.js';
 import { setOutputDevice, getAudioContext, supportsSetSinkId } from '../audio/context.js';
 import { pollDetector, setListenMode } from '../audio/detector.js';
 import { setRmsColumnVisible } from './shotsTable.js';
+import { playBeep } from '../audio/beep.js';
+import { formatTime } from '../timer/utils.js';
 
 const $ = (s) => document.querySelector(s);
 let __deviceChangeHandlerAdded = false;
@@ -44,24 +47,30 @@ async function populateDeviceLists() {
   try { devices = await navigator.mediaDevices.enumerateDevices(); }
   catch (e) { if (detectBtn) detectBtn.disabled = false; const opt = document.createElement('option'); opt.disabled = true; opt.textContent = 'Could not enumerate devices'; micSelect.appendChild(opt); spkSelect.appendChild(opt.cloneNode(true)); if (statusEl) setStatus('Could not enumerate audio devices. Check microphone permission.', 'error'); return; }
   finally { if (detectBtn) detectBtn.disabled = false; }
-  devices.forEach(d => { const opt = document.createElement('option'); opt.value = d.deviceId || ''; opt.textContent = d.label || `${d.kind} (${(d.deviceId||'').slice(0,8)})`; if (d.kind === 'audioinput') micSelect.appendChild(opt); if (d.kind === 'audiooutput') spkSelect.appendChild(opt); });
+  devices.forEach(d => {
+    const opt = document.createElement('option');
+    opt.value = d.deviceId || '';
+    opt.textContent = d.label || `${d.kind} (${(d.deviceId||'').slice(0,8)})`;
+    if (d.kind === 'audioinput' && micSelect) micSelect.appendChild(opt);
+    // Only populate output selector if the platform supports programmatic output selection
+    if (d.kind === 'audiooutput' && spkSelect && supportsSetSinkId()) spkSelect.appendChild(opt);
+  });
   if (micSelect.options.length === 0) { const opt = document.createElement('option'); opt.disabled = true; opt.textContent = 'No microphones found'; micSelect.appendChild(opt); }
   if (spkSelect.options.length === 0) { const opt = document.createElement('option'); opt.disabled = true; opt.textContent = 'No speakers found'; spkSelect.appendChild(opt); }
   // If setSinkId is not supported (iOS Safari, etc.) disable the speaker selector and show a help tip
   try {
     if (!supportsSetSinkId()) {
-      spkSelect.disabled = true;
-      const tip = document.createElement('div');
-      tip.id = 'speakerTip';
-      tip.className = 'input-hint';
-      tip.textContent = 'Speaker selection is not supported by this browser. To change output on your device use the system audio controls (Control Center for iPhone: tap the audio output icon to pick Speaker or your Bluetooth device).';
-      spkSelect.parentNode && spkSelect.parentNode.appendChild(tip);
+      if (spkSelect) {
+        spkSelect.disabled = true;
+        spkSelect.style.display = 'none';
+      }
+      // Do not create an explanatory tip on mobile/iOS to avoid extra UI clutter.
     }
   } catch (e) { /* ignore */ }
   if (prevMic) micSelect.value = prevMic; if (prevSpk) spkSelect.value = prevSpk; if (statusEl) { setStatus(`Found ${micSelect.options.length} mic(s) and ${spkSelect.options.length} speaker(s)`, 'success'); setTimeout(clearStatus, 3000); }
 }
 
-export function initControls({ onStart = () => {}, onReset = () => {}, onCalibrate = () => {}, onNewParticipant = () => {} } = {}) {
+export function initControls({ onStart = () => {}, onCalibrate = () => {}, onNewParticipant = () => {} } = {}) {
   const attach = () => {
     // Detect mobile/touch platforms and avoid automatic device detection there
     const isMobilePlatform = (() => {
@@ -73,21 +82,27 @@ export function initControls({ onStart = () => {}, onReset = () => {}, onCalibra
       } catch (e) { return false; }
     })();
 
-    if (!isMobilePlatform) {
+    // On desktop-like platforms attempt to auto-detect devices. On mobile or
+    // when programmatic output switching isn't available, hide selectors and
+    // defer detection to explicit user action.
+    if (!isMobilePlatform && supportsSetSinkId()) {
       (async () => { try { await populateDeviceLists(); } catch (e) { console.warn('Auto device detection failed:', e); } })();
     } else {
-      // On mobile, hide device selectors and the Detect button to avoid intrusive permission prompts
       try {
         const detectBtnEl = document.getElementById('detectBtn'); if (detectBtnEl) detectBtnEl.style.display = 'none';
-        const micSel = document.getElementById('micSelect'); if (micSel && micSel.parentNode) micSel.parentNode.style.display = 'none';
+        // Hide mic selector on mobile platforms — system will route the active mic
+        const micLabel = document.getElementById('micLabel'); if (micLabel) micLabel.style.display = 'none';
+        // Hide speaker selector whenever setSinkId is not supported (e.g., iOS)
         const spkSel = document.getElementById('speakerSelect'); if (spkSel && spkSel.parentNode) spkSel.parentNode.style.display = 'none';
-        // Add a small note explaining device selection is handled by the system on mobile
-        const devicesSection = document.getElementById('devices');
-        if (devicesSection) {
-          const note = document.createElement('div');
-          note.className = 'system-output-note input-hint';
-          note.textContent = 'Device detection disabled on mobile. Use your system audio controls to pick microphone or speaker.';
-          devicesSection.appendChild(note);
+        // Show a gentle note only when speaker control is hidden due to lack of setSinkId
+        if (!supportsSetSinkId()) {
+          const devicesSection = document.getElementById('devices');
+          if (devicesSection) {
+            const note = document.createElement('div');
+            note.className = 'system-output-note input-hint';
+            note.textContent = 'Audio input/output is controlled by your device — use system controls (Control Center or OS settings) to change microphones or speakers.';
+            devicesSection.appendChild(note);
+          }
         }
       } catch (e) { /* ignore DOM errors */ }
     }
@@ -282,15 +297,49 @@ export function initControls({ onStart = () => {}, onReset = () => {}, onCalibra
 
     // Control buttons
   const startBtn = $('#startBtn');
-  const resetBtn = $('#resetBtn');
     const calibrateBtn = $('#calibrateBtn');
     const detectBtn = $('#detectBtn');
     const resetCourseBtn = $('#resetCourseBtn');
-  
-  if (startBtn) startBtn.addEventListener('click', async () => { try { stopListening(); setListenMode(false); } catch (err) {} if (typeof onStart === 'function') onStart(); });
-    if (resetBtn) resetBtn.addEventListener('click', () => { if (typeof onReset === 'function') onReset(); });
-    if (resetCourseBtn) resetCourseBtn.addEventListener('click', () => { if (typeof onNewParticipant === 'function') onNewParticipant(); });
-    if (calibrateBtn) calibrateBtn.addEventListener('click', () => { if (typeof onCalibrate === 'function') onCalibrate(); });
+
+  // Pending randomized start timer (ms)
+  let startDelayTimer = null;
+  function clearPendingStart() {
+    if (startDelayTimer) { clearTimeout(startDelayTimer); startDelayTimer = null; }
+    try { if (startBtn) startBtn.disabled = false; } catch (e) {}
+  }
+
+  if (startBtn) startBtn.addEventListener('click', async () => {
+    try { stopListening(); setListenMode(false); } catch (err) {}
+    // If a previous run is active, reset it first so Start acts like the old Reset
+    try { resetTimer(); } catch (e) { /* ignore */ }
+    // Prevent double-starts: disable the button while waiting for the random delay
+    try { startBtn.disabled = true; } catch (e) {}
+  // Random pre-start between 1 and 3 seconds. We'll show a red countdown on
+  // the main clock counting down the random time (rocket-launch style), then
+  // play the beep and start the actual stage countdown.
+  const preMs = 1000 + Math.floor(Math.random() * 2001);
+    const displayEl = document.getElementById('display');
+    // Apply visual prestart indicator
+    if (displayEl) displayEl.classList.add('prestart');
+    const preStartAt = performance.now();
+    startDelayTimer = setInterval(() => {
+      const now = performance.now();
+      const elapsed = now - preStartAt;
+      const remaining = Math.max(0, preMs - elapsed);
+      if (displayEl) displayEl.textContent = formatTime(Math.ceil(remaining));
+      if (remaining <= 0) {
+        // clear interval
+        clearPendingStart();
+        if (displayEl) displayEl.classList.remove('prestart');
+        // play beep and immediately start the real countdown, skipping the
+        // startTimer initial beep to avoid double beep
+        try { playBeep(); } catch (e) {}
+        if (typeof onStart === 'function') onStart({ skipInitialBeep: true });
+      }
+    }, 100);
+  });
+  if (resetCourseBtn) resetCourseBtn.addEventListener('click', () => { clearPendingStart(); if (typeof onNewParticipant === 'function') onNewParticipant(); });
+    if (calibrateBtn) calibrateBtn.addEventListener('click', () => { clearPendingStart(); if (typeof onCalibrate === 'function') onCalibrate(); });
 
     if (listenBtn) listenBtn.addEventListener('click', async () => { if (listenBtn.textContent === 'Listen') await startListening(); else stopListening(); });
     if (detectBtn) detectBtn.addEventListener('click', async () => { await populateDeviceLists(); });

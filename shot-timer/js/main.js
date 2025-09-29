@@ -22,7 +22,6 @@ document.addEventListener('DOMContentLoaded', async () => {
   // 3️⃣ Initialise UI controls (buttons, sliders, etc.)
   initControls({
   onStart:   () => startTimer(),
-  onReset:   () => resetTimer(),
     onCalibrate: () => calibrateLatency(),
     onNewParticipant: () => {
       // Prompt to avoid accidental resets
@@ -61,7 +60,8 @@ document.addEventListener('DOMContentLoaded', async () => {
   // or rendering cause tiny height differences. Sync heights after fonts
   // settle and on window resize.
   function syncActionButtonSizes() {
-    const ids = ['nextStageBtn', 'startBtn', 'resetBtn'];
+    // Order: Start then Next (Start sits left of Next per UI change)
+    const ids = ['startBtn', 'nextStageBtn'];
     const els = ids.map(id => document.getElementById(id)).filter(Boolean);
     if (els.length < 2) return;
     // reset any inline height we previously set

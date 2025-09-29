@@ -22,7 +22,7 @@ function updateDisplay(remainingMs) {
 let timerFinished = false;  // becomes true once countdown reaches zero
    Public API – called from UI (controls.js)
 ----------------------------------------------------------------- */
-export function startTimer() {
+export function startTimer(options = {}) {
   // Pull the latest user settings
   totalDuration = getTotalSeconds() * 1000;
   // Reset state
@@ -31,7 +31,9 @@ export function startTimer() {
   timerFinished = false;
   clearShotsTable();
   updateDisplay(totalDuration);
-  playBeep();                     // initial cue (ready)
+  // Play initial cue unless caller asked to skip it (used when controls plays
+  // the cue at the end of a randomized pre-start delay).
+  if (!options.skipInitialBeep) playBeep();
 
   // Kick off the animation loop
   rafId = requestAnimationFrame(tick);
@@ -95,7 +97,8 @@ function tick(now) {
     // loop running so the detector continues to listen for errant shots
     // after the stage ends (these will be recorded and highlighted as late).
     if (!timerFinished) {
-      if (getBeepOnShot && getBeepOnShot()) playBeep();
+      // Play the final beep unconditionally (same as the initial cue at start)
+      playBeep();
       timerFinished = true;
       // notify other UI components that the stage finished
       try {

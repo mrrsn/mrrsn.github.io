@@ -16,32 +16,38 @@ export async function initAudio() {
   // Populate the speaker selector (UI lives in ui/controls.js)
   const speakerSelect = document.getElementById('speakerSelect');
   if (speakerSelect) {
-    // Grab the list of audiooutput devices (may need a prior getUserMedia)
-    if (navigator.mediaDevices && typeof navigator.mediaDevices.enumerateDevices === 'function') {
-      try {
-        const devices = await navigator.mediaDevices.enumerateDevices();
-        speakerSelect.innerHTML = '';
-        devices
-          .filter(d => d.kind === 'audiooutput')
-          .forEach(d => {
-            const opt = document.createElement('option');
-            opt.value = d.deviceId;
-            opt.textContent = d.label || `Speaker (${d.deviceId.slice(0, 8)})`;
-            speakerSelect.appendChild(opt);
-          });
-        // Only remember/apply an output device if the platform supports programmatic
-        // sink selection (setSinkId). On mobile browsers like iOS Safari this is
-        // not available and we should rely on the system-selected output.
-        if (audioCtx && audioCtx.destination && typeof audioCtx.destination.setSinkId === 'function') {
-          outputDeviceId = speakerSelect.value;
-        } else {
-          outputDeviceId = null; // use system default
+    // Only attempt to enumerate and populate speaker outputs when the platform
+    // actually supports programmatic output selection (AudioContext.destination.setSinkId).
+    // On many mobile browsers (notably iOS Safari) setSinkId is not available and
+    // attempting to enumerate or programmatically switch outputs can lead to
+    // confusing behaviour. In that case we leave outputDeviceId as null and
+    // let the system (user agent) handle audio routing.
+    if (audioCtx && audioCtx.destination && typeof audioCtx.destination.setSinkId === 'function') {
+      if (navigator.mediaDevices && typeof navigator.mediaDevices.enumerateDevices === 'function') {
+        try {
+          const devices = await navigator.mediaDevices.enumerateDevices();
+          speakerSelect.innerHTML = '';
+          devices
+            .filter(d => d.kind === 'audiooutput')
+            .forEach(d => {
+              const opt = document.createElement('option');
+              opt.value = d.deviceId;
+              opt.textContent = d.label || `Speaker (${d.deviceId.slice(0, 8)})`;
+              speakerSelect.appendChild(opt);
+            });
+          outputDeviceId = speakerSelect.value || null;
+        } catch (err) {
+          console.warn('Could not enumerate devices in initAudio:', err);
         }
-      } catch (err) {
-        console.warn('Could not enumerate devices in initAudio:', err);
+      } else {
+        console.warn('navigator.mediaDevices.enumerateDevices not available; speaker list will remain empty');
       }
     } else {
-      console.warn('navigator.mediaDevices.enumerateDevices not available; speaker list will remain empty');
+      // Platform doesn't support setSinkId — avoid enumerating/attempting to switch
+      // outputs and rely on the system default (e.g., iOS Control Center routing).
+      speakerSelect.innerHTML = '';
+      speakerSelect.style.display = 'none';
+      outputDeviceId = null;
     }
   }
 }
@@ -65,12 +71,16 @@ export function supportsSetSinkId() {
  * Force the output device for the *destination* node (Chrome/Edge only).
  */
 export async function setOutputDevice(deviceId) {
-  outputDeviceId = deviceId;
-  if (audioCtx && typeof audioCtx.destination.setSinkId === 'function') {
-    try {
-      await audioCtx.destination.setSinkId(deviceId);
-    } catch (e) {
-      console.warn('setSinkId failed:', e);
-    }
+  if (!audioCtx || !audioCtx.destination || typeof audioCtx.destination.setSinkId !== 'function') {
+    // Platform does not support programmatic sink selection — ignore request
+    // and keep using the system default.
+    console.warn('setOutputDevice: setSinkId not supported on this platform; ignoring setOutputDevice request');
+    return;
+  }
+  try {
+    await audioCtx.destination.setSinkId(deviceId);
+    outputDeviceId = deviceId;
+  } catch (e) {
+    console.warn('setSinkId failed:', e);
   }
 }

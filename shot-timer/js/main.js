@@ -60,8 +60,8 @@ document.addEventListener('DOMContentLoaded', async () => {
   // or rendering cause tiny height differences. Sync heights after fonts
   // settle and on window resize.
   function syncActionButtonSizes() {
-    // Order: Start then Next (Start sits left of Next per UI change)
-    const ids = ['startBtn', 'nextStageBtn'];
+  // Order: Start, Stop, Next (Stop sits between Start and Next)
+  const ids = ['startBtn', 'stopBtn', 'nextStageBtn'];
     const els = ids.map(id => document.getElementById(id)).filter(Boolean);
     if (els.length < 2) return;
     // reset any inline height we previously set

@@ -16,6 +16,9 @@
   --status-error-bg: #fff0f0;
   --status-error-text: #7a0b0b;
   --button-text: #ffffff;
+  /* Disabled button colors (light theme) */
+  --btn-disabled-bg: #e6e6e6;
+  --btn-disabled-text: #6b6b6b;
 }
 
 /* Allow explicit override from JS: html[data-theme="dark"] will force dark variables
@@ -36,6 +39,9 @@ html[data-theme="dark"], :root[data-theme="dark"] {
   --status-error-bg: #331212;
   --status-error-text: #ffb4b4;
   --button-text: #0b0b0d;
+  /* Disabled button colors (dark theme) */
+  --btn-disabled-bg: #2a2a2a;
+  --btn-disabled-text: #bdbdbd;
 }
 
 /* Respect system preference when no explicit choice made */
@@ -56,6 +62,9 @@ html[data-theme="dark"], :root[data-theme="dark"] {
     --status-error-bg: #331212;
     --status-error-text: #ffb4b4;
     --button-text: #0b0b0d;
+  /* Disabled button colors (prefers dark) */
+  --btn-disabled-bg: #2a2a2a;
+  --btn-disabled-text: #bdbdbd;
   }
 }
 body {
@@ -240,10 +249,44 @@ button {
   touch-action: manipulation;
 }
 
+/* Transient visual state when a control is pressed programmatically
+   (used by JS to provide immediate tactile feedback on Start/Stop clicks) */
+button.pressed {
+  transform: scale(0.98);
+  filter: brightness(0.9);
+  transition: transform 120ms ease, filter 120ms ease;
+}
+
+/* Disabled button appearance that works in both light and dark modes.
+   Use both the :disabled pseudo-class and the `.disabled` helper class used by JS. */
+button:disabled,
+button.disabled {
+  background: var(--btn-disabled-bg) !important;
+  color: var(--btn-disabled-text) !important;
+  cursor: not-allowed;
+  box-shadow: none !important;
+  filter: none !important;
+  opacity: 1; /* keep full opacity but use the muted color variables */
+}
+
 /* Simple colour scheme */
 #detectBtn    { background: var(--primary); color: #fff; }
 #calibrateBtn { background: var(--accent); color: #fff; }
 #startBtn     { background: var(--accent); color: #fff; }
+/* Stop button (danger) — placed between Start and Next on mobile/desktop */
+#stopBtn      { background: var(--danger); color: #fff; }
+
+/* Active animation used for Start, Stop and Next to indicate activity/state
+   (pulsing glow). Applied instead of a status message for Start/Stop. */
+.btn-anim {
+  animation: pulse-600 1200ms infinite ease-in-out;
+  box-shadow: 0 0 0 0 rgba(255,255,255,0.0);
+}
+@keyframes pulse-600 {
+  0% { transform: translateZ(0) scale(1); box-shadow: 0 0 0 0 rgba(0,0,0,0); }
+  50% { transform: translateZ(0) scale(1.03); box-shadow: 0 8px 20px rgba(59,130,246,0.08); }
+  100% { transform: translateZ(0) scale(1); box-shadow: 0 0 0 0 rgba(0,0,0,0); }
+}
 
 /* Shots table */
 #shotsPanel {
@@ -398,7 +441,7 @@ html[data-theme="dark"] .collapse-toggle:hover {
 
 #collapsedArea.collapsed { display: none; }
 #collapsedArea { margin: 0.5rem 0 1rem 0; padding: 0.5rem; border: 1px dashed rgba(0,0,0,0.08); background: var(--panel-bg); color: var(--text); }
-/* legacy .next-row removed; layout now controlled by .buttons and .next-btn */
+/* .next-row removed; layout now controlled by .buttons and .next-btn */
 
 .course-notes { margin-top: 0.5rem; color: var(--muted); }
 

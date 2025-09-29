@@ -5,6 +5,18 @@ import { showStatus } from './status.js';
 
 let courses = [];
 
+// Helper: append multiline text to an element as separate <p> nodes so newlines are visible.
+function appendMultilineAsParagraphs(el, text) {
+  if (!el) return;
+  // allow either a single string or already-multiline input
+  const lines = String(text || '').split('\n');
+  lines.forEach(line => {
+    const p = document.createElement('p');
+    p.textContent = line;
+    el.appendChild(p);
+  });
+}
+
 export async function initCourseChooser() {
   // For now we only expect a single course file; load the folder listing would be future work
   try {
@@ -57,10 +69,46 @@ export async function initCourseChooser() {
       if (roundsText && start) roundsText = `${roundsText} from ${start}`;
       roundsEl.textContent = roundsText;
     }
-    if (detailsEl) detailsEl.textContent = stage.notes || '';
+    if (detailsEl) {
+      // Clear previous details and render stage notes as paragraphs so newlines show.
+      detailsEl.innerHTML = '';
+      if (stage.notes) appendMultilineAsParagraphs(detailsEl, stage.notes);
+      // (No course-level scoring injected here; scoring is shown via the Scoring pseudo-stage.)
+    }
   // Reset next button label (in case it was changed to Save previously)
   const nextBtnEl = document.getElementById('nextStageBtn');
   if (nextBtnEl) nextBtnEl.textContent = 'Next';
+  }
+
+  // Helper to apply course-level scoring instructions as a pseudo-stage
+  function applyScoring(course) {
+    const titleEl = document.getElementById('stageTitle');
+    const metaEl = document.getElementById('stageMeta');
+    const roundsEl = document.getElementById('stageRounds');
+    const detailsEl = document.getElementById('stageDetails');
+    if (titleEl) titleEl.textContent = 'Scoring Instructions';
+    if (metaEl) metaEl.textContent = '';
+    if (roundsEl) roundsEl.textContent = '';
+    if (detailsEl) {
+      detailsEl.innerHTML = '';
+      // Build scoring lines from structured data (scoreRules must be an array of strings).
+      try {
+        const lines = [];
+        if (Array.isArray(course.scoreRules)) {
+          course.scoreRules.forEach(r => { if (r) lines.push(String(r)); });
+        }
+
+  // Totals: use roundCount and top-level totalTimeSec.
+  const totalShots = course.roundCount || '';
+  const totalTime = course.totalTimeSec || '';
+        if (totalShots !== '') appendMultilineAsParagraphs(detailsEl, `Total shots: ${totalShots}`);
+        if (totalTime !== '') appendMultilineAsParagraphs(detailsEl, `Total time: ${totalTime}s`);
+
+        // Append rules (if any)
+        lines.forEach(l => appendMultilineAsParagraphs(detailsEl, l));
+      } catch (e) { /* ignore */ }
+    }
+    const nextBtn = document.getElementById('nextStageBtn'); if (nextBtn) nextBtn.textContent = 'Next';
   }
 
   // populate courseSelect
@@ -81,6 +129,11 @@ export async function initCourseChooser() {
       if (notesEl) notesEl.textContent = 'Select a course to see course notes.';
       return;
     }
+    // populate a pseudo-stage for scoring instructions first, then real stages
+    const scoreOpt = document.createElement('option');
+    scoreOpt.value = 'scoring';
+    scoreOpt.textContent = 'Scoring Instructions';
+    stageSelect.appendChild(scoreOpt);
     // populate stages
     course.stages.forEach(s => {
       const opt = document.createElement('option');
@@ -90,20 +143,22 @@ export async function initCourseChooser() {
     });
     // populate course notes
     if (notesEl) notesEl.textContent = course.notes || '';
-    // auto-select first stage and apply it
-    if (course.stages && course.stages.length > 0) {
-      const first = course.stages[0];
-      stageSelect.value = String(first.id);
-      applyStage(course, first);
-    }
+    // default to showing scoring instructions first
+    stageSelect.value = 'scoring';
+    applyScoring(course);
   });
 
   // Auto-apply when the user selects a stage
   stageSelect.addEventListener('change', () => {
     const courseId = courseSelect.value;
-    const stageId = Number(stageSelect.value);
+    const sel = stageSelect.value;
     const course = courses.find(c => c.id === courseId);
     if (!course) return;
+    if (sel === 'scoring') {
+      applyScoring(course);
+      return;
+    }
+    const stageId = Number(sel);
     const stage = course.stages.find(s => s.id === stageId);
     if (!stage) return;
     applyStage(course, stage);
@@ -145,12 +200,41 @@ export async function initCourseChooser() {
         return;
       }
 
-      const current = Number(stageSelect.value) || 0;
+      const sel = stageSelect.value;
+      // If currently viewing scoring instructions, advance to first real stage
+      if (sel === 'scoring') {
+        if (course.stages && course.stages.length > 0) {
+          const first = course.stages[0];
+          stageSelect.value = String(first.id);
+          applyStage(course, first);
+        }
+        return;
+      }
+
+      const current = Number(sel) || 0;
       // find index of current stage in course.stages
       const idx = course.stages.findIndex(s => s.id === current);
+      // If we're on the last stage, pressing Next should show scoring instructions and then turn Next->Save
+      if (idx === course.stages.length - 1) {
+        // archive current stage shots into participant store
+        try {
+          archiveStageShots({ courseId: course.id, courseName: course.name, stageId: Number(stageSelect.value) || null });
+        } catch (e) {
+          console.warn('archiveStageShots failed', e);
+        }
+        // Reset timer state before showing scoring
+        try { resetTimer(); } catch (e) { console.warn('resetTimer failed', e); }
+        // show scoring instructions as the next "stage"
+        stageSelect.value = 'scoring';
+        applyScoring(course);
+        // change Next into Save now that scoring is visible
+        const nextBtnEl = document.getElementById('nextStageBtn'); if (nextBtnEl) nextBtnEl.textContent = 'Save';
+        return;
+      }
+
       const nextIdx = (idx + 1) % course.stages.length;
       const nextStage = course.stages[nextIdx];
-  // before advancing archive current stage shots into participant store
+      // before advancing archive current stage shots into participant store
       try {
         archiveStageShots({ courseId: course.id, courseName: course.name, stageId: Number(stageSelect.value) || null });
       } catch (e) {
@@ -158,11 +242,11 @@ export async function initCourseChooser() {
       }
       // Reset the timer state (clear current stage shots/display) before applying the next stage
       try { resetTimer(); } catch (e) { console.warn('resetTimer failed', e); }
-  // update select and apply
-  stageSelect.value = String(nextStage.id);
-  // trigger apply
-  applyStage(course, nextStage);
-  // Stage change — instructions display the current stage so no popup.
+      // update select and apply
+      stageSelect.value = String(nextStage.id);
+      // trigger apply
+      applyStage(course, nextStage);
+      // Stage change — instructions display the current stage so no popup.
     });
   }
 
@@ -176,6 +260,13 @@ export async function initCourseChooser() {
     if (idx === course.stages.length - 1) {
       const nextBtnEl = document.getElementById('nextStageBtn');
       if (nextBtnEl) nextBtnEl.textContent = 'Save';
+      // After the final stage, show scoring instructions in the details area
+      try {
+        const detailsEl = document.getElementById('stageDetails');
+        if (detailsEl && course) {
+          applyScoring(course);
+        }
+      } catch (e) { /* ignore */ }
     }
   });
 }

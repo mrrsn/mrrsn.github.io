@@ -120,3 +120,20 @@ export function setListenMode(enabled) {
   _suppressShots = Boolean(enabled);
   console.debug('detector: setListenMode ->', _suppressShots);
 }
+
+/**
+ * Stop and release the microphone stream and analyser nodes.
+ * Useful when the user explicitly wants to stop listening and free the device.
+ */
+export function stopMic() {
+  try {
+    if (micStream) {
+      try { micStream.getTracks().forEach(t => { try { t.stop(); } catch (e) {} }); } catch (e) {}
+      micStream = null;
+    }
+  } catch (e) { console.warn('stopMic: error stopping mic stream', e); }
+  try { analyser = null; dataArray = null; } catch (e) { /* ignore */ }
+  _suppressShots = false;
+  lastShotTs = 0;
+  console.debug('detector: stopMic — microphone stream released');
+}

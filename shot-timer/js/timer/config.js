@@ -5,7 +5,7 @@
 let totalSeconds   = 5;   // default – can be changed via UI
 let expectedShots  = 3;    // default – can be changed via UI
 let shotThreshold  = 30;   // RMS threshold (0‑127) – UI slider
-let debounceMs     = 50;  // minimum gap between detections
+let debounceMs     = 100;  // minimum gap between detections
 let calibrationOffsetMs = 0; // milliseconds to subtract from detected timestamps
 let beepOnShot = false; // whether to play a beep when a shot is recorded
 

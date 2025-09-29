@@ -12,6 +12,7 @@ let totalDuration = 0;      // ms (derived from totalSeconds)
 let shotLog = [];           // array of { idx, timestampMs }
 let participantShots = [];  // flattened shots for the current participant across stages
 let timerFinished = false;  // becomes true once countdown reaches zero
+let acceptShots = false;    // whether incoming shot events should be recorded
 
 function updateDisplay(remainingMs) {
   const el = document.getElementById('display');
@@ -28,6 +29,8 @@ export function startTimer(options = {}) {
   // Reset state
   startTime = performance.now();
   shotLog = [];
+  // allow recording shots for this run (including late shots after finish)
+  acceptShots = true;
   timerFinished = false;
   clearShotsTable();
   updateDisplay(totalDuration);
@@ -37,11 +40,20 @@ export function startTimer(options = {}) {
 
   // Kick off the animation loop
   rafId = requestAnimationFrame(tick);
+  // notify other UI components that the stage started
+  try {
+    document.dispatchEvent(new CustomEvent('stageStarted', { detail: { when: performance.now() } }));
+  } catch (e) { /* ignore */ }
 }
 
 /** Called by the detector when a shot is heard */
 export function handleShot(timestampMs, rms = null) {
   if (!startTime) return; // ignore if timer not started
+  if (!acceptShots) {
+    // Shots are being suppressed (timer stopped) — ignore
+    console.debug('handleShot: shot ignored because acceptShots is false');
+    return;
+  }
 
   // Guard against extra shots after the timer has expired
   // Apply calibration offset (subtract measured system latency)
@@ -126,6 +138,23 @@ export function resetTimer() {
   shotLog = [];
   clearShotsTable();
   updateDisplay(0);
+  // After a hard reset, do not accept further shots until a new startTimer()
+  acceptShots = false;
+}
+
+// Stop the active countdown without clearing the current shot log.
+// This cancels the internal RAF loop and prevents further shots from
+// being recorded until startTimer() is called again.
+export function stopTimer() {
+  if (rafId) {
+    cancelAnimationFrame(rafId);
+    rafId = null;
+  }
+  // stop accepting new shots but preserve shotLog for review/export
+  acceptShots = false;
+  try {
+    document.dispatchEvent(new CustomEvent('timerStopped', { detail: { when: performance.now() } }));
+  } catch (e) { /* ignore */ }
 }
 export function calibrateLatency() {
   (async () => {

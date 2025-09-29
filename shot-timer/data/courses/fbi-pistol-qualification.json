@@ -1,13 +1,13 @@
 {
   "id": "fbi-pistol-qualification",
   "name": "FBI Pistol Qualification",
-  "roundCount": 50,
   "target": "QIT-99",
-  "scoreRules": {
-    "bottleZonePoints": 2,
-    "passingScore": 80,
-    "maxScore": 100
-  },
+  "roundCount": 50,
+  "totalTimeSec": 63,
+  "scoreRules": [
+    "Bottle zone points: 2",
+    "Passing score: 80/100"
+  ],
   "notes": "All draws from concealment unless otherwise noted. Ready position has firearm pointed at 45-degree angle to the ground in front of the target, safety engaged if applicable, finger off trigger.",
   "stages": [
     { "id": 1, "distanceYards": 3,  "startPosition": "Draw",  "shots": 6, "timeSec": 6,  "notes": "Fire 3 strong hand, switch hands, fire 3 weak hand." },
@@ -21,7 +21,6 @@
     { "id": 9, "distanceYards": 15, "startPosition": "Ready", "shots": 3, "timeSec": 5,  "notes": "From the low ready, aim and fire 3 shots in 5 seconds." },
     { "id": 10, "distanceYards": 25, "startPosition": "Draw",  "shots": 8, "timeSec": 20, "notes": "Fire 4 shots, drop to kneeling, fire 4 more shots." }
   ],
-  "summary": { "totalShots": 50, "totalTimeSec": 63 },
   "createdBy": "Rob Morrison",
   "createdAt": "2025-09-27"
 }

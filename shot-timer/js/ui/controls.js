@@ -19,6 +19,11 @@ let statusClearTimer = null;
 function setStatus(msg, type = '') {
   const el = document.getElementById('status');
   if (!el) return;
+  // If the user manually dismissed the status (Close), respect that and
+  // avoid re-opening trivial statuses until they explicitly request again.
+  try {
+    if (el.dataset && el.dataset.manuallyClosed === '1' && type !== 'error') return;
+  } catch (e) {}
   // Ensure the status container is visible (CSS uses .status-visible to fade it in)
   el.classList.remove('hidden', 'error', 'success');
   el.classList.add('status-visible');
@@ -121,7 +126,7 @@ function showStatusWithDetails(message, type, diag, retryFn) {
     closeBtn.className = 'btn-secondary';
     closeBtn.textContent = 'Close';
     closeBtn.style.marginLeft = '0.25rem';
-    closeBtn.addEventListener('click', () => { try { clearStatus(); } catch (e) { console.warn('Close failed', e); } });
+  closeBtn.addEventListener('click', () => { try { const s = document.getElementById('status'); if (s) { try { s.dataset.manuallyClosed = '1'; } catch (e) {} } clearStatus(); } catch (e) { console.warn('Close failed', e); } });
     ctrl.appendChild(closeBtn);
 
     // Copy diagnostics button
@@ -835,14 +840,17 @@ export function initControls({ onStart = () => {}, onCalibrate = () => {}, onNew
             let lastTap = 0;
             logo.addEventListener('touchend', (ev) => {
               try {
+                // Prevent default to avoid iOS double-tap zoom when we detect a
+                // quick second tap. Otherwise, allow the tap to proceed.
                 const now = Date.now();
                 const delta = now - lastTap;
-                // Consider two taps within 350ms a double-tap
                 if (delta > 0 && delta < 350) {
-                  ev.preventDefault();
+                  try { ev.preventDefault(); ev.stopPropagation(); } catch (e) {}
                   try { cycleCourse(logo); } catch (e) { console.warn('logo double-tap cycle failed', e); }
                   lastTap = 0;
                 } else {
+                  // single tap: store time and allow default behavior (so single-tap
+                  // interactions still work). Do not call preventDefault here.
                   lastTap = now;
                 }
               } catch (e) { /* ignore */ }
@@ -890,12 +898,16 @@ export function initControls({ onStart = () => {}, onCalibrate = () => {}, onNew
       try { if (startDelayTimer) { clearTimeout(startDelayTimer); startDelayTimer = null; } } catch (err) { /* ignore */ }
     }
     try { if (startBtn) startBtn.disabled = false; } catch (e) {}
+    try { setNextEnabled(true); setNextPulse(false); } catch (e) {}
   }
 
   if (startBtn) startBtn.addEventListener('click', async () => {
     // Visual feedback for user's press
     transientPress(startBtn);
   try { stopListening(); setListenMode(false); } catch (err) {}
+  // Disable Next immediately when a start is triggered so users cannot
+  // accidentally advance to the next stage during pre-start or an active run.
+  try { setNextEnabled(false); setNextPulse(false); } catch (e) {}
   // If we're permitted to repeat the stage (after a previous run), ensure microphone
     // permission / device is available before starting the pre-start sequence.
     if (canRepeatStage && !isTimerActive) {
@@ -1100,6 +1112,8 @@ export function initControls({ onStart = () => {}, onCalibrate = () => {}, onNew
   if (detectBtn) detectBtn.addEventListener('click', async () => { 
     try {
       __autoDeviceAllowed = true;
+      // Reset manual-close so status messages will reappear after user requested detection
+      try { const s = document.getElementById('status'); if (s) s.dataset.manuallyClosed = '0'; } catch (e) {}
       await populateDeviceLists();
       // After device enumeration attempt to prime audio so Start/Listen are snappy.
       let primed = false;

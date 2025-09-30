@@ -6,16 +6,13 @@ import { pollDetector, setListenMode, stopMic } from '../audio/detector.js';
 import { setRmsColumnVisible } from './shotsTable.js';
 import { playBeep } from '../audio/beep.js';
 import { formatTime } from '../timer/utils.js';
-
 const $ = (s) => document.querySelector(s);
-// Safe element getter: returns null instead of throwing; useful in defensive code
 function getEl(id) { try { return document.getElementById(id); } catch (e) { return null; } }
 // Guards to avoid re-entrancy and duplicate operations
 let __populateDevicesInProgress = false;
 let __isListening = false;
 let __deviceChangeHandlerAdded = false;
 let __autoDeviceAllowed = false;
-
 function setStatus(msg, type = '') {
   const el = document.getElementById('status');
   if (!el) return;
@@ -148,8 +145,7 @@ export function initControls({ onStart = () => {}, onCalibrate = () => {}, onNew
       __isListening = true;
       try { const ctx = getAudioContext(); if (ctx && ctx.state === 'suspended' && typeof ctx.resume === 'function') await ctx.resume(); } catch (e) { /* ignore */ }
       try { setListenMode(true); } catch (e) { console.warn('Could not set Listen mode:', e); }
-        // indicate listening via Stop button animation instead of a status message
-        const stopBtnAnim = document.getElementById('stopBtn'); if (stopBtnAnim) stopBtnAnim.classList.add('btn-anim');
+  // indicate listening via animation; the Listen control shows 'Stop' while active
       const sleep = ms => new Promise(res => setTimeout(res, ms));
       async function loop(now) {
         let rms = 0;
@@ -183,7 +179,6 @@ export function initControls({ onStart = () => {}, onCalibrate = () => {}, onNew
       try { stopMic(); } catch (e) { console.warn('stopListening: stopMic failed', e); }
       __isListening = false;
       clearStatus();
-      const stopBtnEl = document.getElementById('stopBtn'); if (stopBtnEl) stopBtnEl.classList.remove('btn-anim');
     } catch (err) {
       console.warn('stopListening: unexpected error', err);
     }
@@ -195,11 +190,11 @@ export function initControls({ onStart = () => {}, onCalibrate = () => {}, onNew
 
   // Timer/interaction state
   let isTimerActive = false; // true when the stage countdown is actively running
-  let canRepeatStage = false; // true after a stop/finish so the user may re-run the stage
+  let canRepeatStage = false; // true after a finish/re-run so the user may re-run the stage
 
-  // Enable or disable Start/Stop controls depending on course/stage selection
-  // and timer state. Backwards compatible: if called with a single boolean
-  // argument both buttons are toggled the same; otherwise pass (startEnabled, stopEnabled).
+  // Enable or disable Start-related controls depending on course/stage selection
+  // and timer state. Kept signature compatible with older callers: passing a
+  // single boolean toggles both startEnabled and the legacy stopEnabled arg.
   function setStartStopEnabled(startEnabled, stopEnabled) {
     try {
       if (typeof stopEnabled === 'undefined') stopEnabled = startEnabled;
@@ -207,11 +202,6 @@ export function initControls({ onStart = () => {}, onCalibrate = () => {}, onNew
         startBtn.disabled = !startEnabled;
         startBtn.setAttribute('aria-disabled', String(!startEnabled));
         if (!startEnabled) startBtn.classList.add('disabled'); else startBtn.classList.remove('disabled');
-      }
-      if (stopBtn) {
-        stopBtn.disabled = !stopEnabled;
-        stopBtn.setAttribute('aria-disabled', String(!stopEnabled));
-        if (!stopEnabled) stopBtn.classList.add('disabled'); else stopBtn.classList.remove('disabled');
       }
     } catch (e) { /* ignore UI errors */ }
   }
@@ -270,7 +260,7 @@ export function initControls({ onStart = () => {}, onCalibrate = () => {}, onNew
         setStartStopEnabled(true); 
         return; 
       }
-      // If no course chosen, allow Start/Stop
+      // If no course chosen, allow Start
       if (!courseSel.value) { 
         try { detachNextButton(); } catch (e) {}
         setStartStopEnabled(true); 
@@ -279,10 +269,20 @@ export function initControls({ onStart = () => {}, onCalibrate = () => {}, onNew
       // If a stage is selected and it's not the scoring pseudo-stage, enable buttons
       const sel = stageSel.value;
       const onStage = Boolean(sel) && sel !== 'scoring';
-      setStartStopEnabled(onStage);
+      // Start should be enabled when a stage is present and not currently running.
+      // Note: the Stop control was removed in favor of automatic stop after
+      // the finish beep; legacy stopEnabled logic is retained for compatibility
+      // but Stop is not present in the UI.
+      if (onStage) {
+        const startEnabled = !isTimerActive;
+        const stopEnabled = isTimerActive || !!canRepeatStage; // legacy
+        setStartStopEnabled(startEnabled, stopEnabled);
+      } else {
+        setStartStopEnabled(false, false);
+      }
       // Next button logic:
       // - If we're showing scoring (before first stage), pulse Next and enable it.
-      // - If we're on a numeric stage and the timer is active, disable Next until Stop is clicked.
+  // - If we're on a numeric stage and the timer is active, disable Next until the run finishes (auto-stop).
       // - Otherwise enable Next and remove pulse.
       if (sel === 'scoring') {
         try { restoreNextButton(); } catch (e) {}
@@ -303,11 +303,10 @@ export function initControls({ onStart = () => {}, onCalibrate = () => {}, onNew
         try { stopListening(); } catch (e) {}
         try { stopMic(); } catch (e) {}
         try { stopTimer(); } catch (e) {}
-        // Ensure UI stays disabled when there is no stage selected. Calling
-        // stopTimer() above may dispatch 'timerStopped' which (in other
-        // contexts) enables the Stop button. Force both Start and Stop to
-        // be disabled for the 'no stage' state so the UI is consistent.
-        try { setStartStopEnabled(false, false); } catch (e) {}
+  // Ensure UI stays disabled when there is no stage selected. Calling
+  // stopTimer() above may dispatch 'timerStopped' and change UI state.
+  // Force Start to be disabled for the 'no stage' state so the UI is consistent.
+  try { setStartStopEnabled(false, false); } catch (e) {}
       }
     } catch (e) { /* ignore */ }
   }
@@ -478,9 +477,8 @@ export function initControls({ onStart = () => {}, onCalibrate = () => {}, onNew
     } catch (e) { /* ignore */ }
 
     // Control buttons
-  const startBtn = $('#startBtn');
-    const stopBtn = $('#stopBtn');
-    const nextStageBtn = document.getElementById('nextStageBtn');
+    const startBtn = $('#startBtn');
+      const nextStageBtn = document.getElementById('nextStageBtn');
     const calibrateBtn = $('#calibrateBtn');
     const detectBtn = $('#detectBtn');
     const resetCourseBtn = document.getElementById('resetCourseBtn');
@@ -493,6 +491,55 @@ export function initControls({ onStart = () => {}, onCalibrate = () => {}, onNew
   let nextStageBtnNextSibling = null;
   let nextStageBtnDetached = false;
   const actionGroup = document.querySelector('.action-group');
+
+  // Auto-stop timer handles: when a stage finishes we keep listening for a
+  // short grace period (2s) to capture trailing shots, then stop listening
+  // automatically. We also swap the logo to an "active" image during the
+  // active-stage window (from first beep until 2s after finish).
+  let autoStopTimer = null;
+  // Post-finish visual countdown (ms)
+  let postStopInterval = null;
+  let postStopEndAt = null;
+  let savedDisplayText = null;
+  let originalLightLogoDisplay = null;
+  let originalDarkLogoDisplay = null;
+  let originalActiveLogoDisplay = null;
+  let logoActive = false;
+
+  function clearAutoStop() {
+    try { if (autoStopTimer) { clearTimeout(autoStopTimer); autoStopTimer = null; } } catch (e) {}
+    try { if (postStopInterval) { clearInterval(postStopInterval); postStopInterval = null; postStopEndAt = null; } } catch (e) {}
+    try {
+      const displayEl = document.getElementById('display');
+      if (displayEl) {
+        displayEl.classList.remove('postfinish');
+        if (savedDisplayText !== null) { displayEl.textContent = savedDisplayText; savedDisplayText = null; }
+      }
+    } catch (e) {}
+  }
+
+  function setActiveStageLogo(active) {
+    try {
+      const light = document.querySelector('.light-logo');
+      const dark = document.querySelector('.dark-logo');
+      const activeEl = document.querySelector('.active-stage-logo');
+      // Cache original display values on first use so we can restore them
+      if (originalLightLogoDisplay === null && light) originalLightLogoDisplay = light.style.display || '';
+      if (originalDarkLogoDisplay === null && dark) originalDarkLogoDisplay = dark.style.display || '';
+      if (originalActiveLogoDisplay === null && activeEl) originalActiveLogoDisplay = activeEl.style.display || '';
+      if (active) {
+        if (light) light.style.display = 'none';
+        if (dark) dark.style.display = 'none';
+        if (activeEl) activeEl.style.display = '';
+        logoActive = true;
+      } else {
+        if (light) light.style.display = originalLightLogoDisplay;
+        if (dark) dark.style.display = originalDarkLogoDisplay;
+        if (activeEl) activeEl.style.display = originalActiveLogoDisplay;
+        logoActive = false;
+      }
+    } catch (e) { console.warn('setActiveStageLogo failed', e); }
+  }
 
   // Pending randomized start timer (ms)
   let startDelayTimer = null;
@@ -511,7 +558,7 @@ export function initControls({ onStart = () => {}, onCalibrate = () => {}, onNew
     // Visual feedback for user's press
     transientPress(startBtn);
   try { stopListening(); setListenMode(false); } catch (err) {}
-    // If we're permitted to repeat the stage (after a Stop), ensure microphone
+  // If we're permitted to repeat the stage (after a previous run), ensure microphone
     // permission / device is available before starting the pre-start sequence.
     if (canRepeatStage && !isTimerActive) {
       // user intent: repeating the stage — re-acquire mic before starting
@@ -555,38 +602,32 @@ export function initControls({ onStart = () => {}, onCalibrate = () => {}, onNew
   if (displayEl) displayEl.classList.remove('prestart');
   const startBtnEl2 = document.getElementById('startBtn'); if (startBtnEl2) startBtnEl2.classList.remove('btn-anim');
         // play beep and immediately start the real countdown, skipping the
-        // startTimer initial beep to avoid double beep
+        // startTimer initial beep to avoid double beep. Also swap the logo to
+        // the active-stage image at the moment of the first beep so the UI
+        // clearly indicates the stage has begun.
         try { playBeep(); } catch (e) {}
+        try { setActiveStageLogo(true); } catch (e) {}
         if (typeof onStart === 'function') onStart({ skipInitialBeep: true });
       }
     }, 100);
   });
-  if (stopBtn) stopBtn.addEventListener('click', () => {
-    // Visual feedback for user's press
-    transientPress(stopBtn);
-    // Stop listening and cancel any pending pre-start; do not reset recorded shots
-  try { stopListening(); } catch (e) { /* ignore */ }
-  try { stopMic(); } catch (e) { /* ignore */ }
-  try { stopTimer(); } catch (e) { /* ignore */ }
-  // Ensure any pending pre-start timer is cleared when user hits Stop
-  try { clearPendingStart(); } catch (e) {}
-  // Re-enable Start and disable Stop so only Start is active (user may repeat)
-  try { setStartStopEnabled(true, false); } catch (e) {}
-    // clear any running/animation states — do not clear recorded shots
-    try { if (startBtn) { startBtn.classList.remove('running'); startBtn.classList.remove('btn-anim'); } } catch (e) {}
-    try { if (stopBtn) stopBtn.classList.remove('btn-anim'); } catch (e) {}
-    // After stopping a stage explicitly, mark timer inactive and animate Next to indicate progression
-    try { isTimerActive = false; } catch (e) {}
-    try { setNextEnabled(true); setNextPulse(true); } catch (e) {}
-    // Allow the user to repeat this stage; the Start handler will re-acquire mic
-    try { canRepeatStage = true; } catch (e) {}
-  });
+  // Stop button removed: stopping is now automatic. If you previously relied
+  // on the Stop click, use Next or Reset Course to interrupt flows. The old
+  // manual handler behavior is preserved by automatic logic below.
   // Animate Next button when clicked; controls.js doesn't handle advancing — courseChooser will — but visual feedback is useful
   if (nextStageBtn) {
     nextStageBtn.addEventListener('click', () => {
       try { nextStageBtn.classList.add('btn-anim'); } catch (e) {}
     });
   }
+
+  // Ensure Next and Reset clear any pending auto-stop timers so we don't race
+  try {
+    if (nextStageBtn) nextStageBtn.addEventListener('click', () => { try { clearAutoStop(); setActiveStageLogo(false); } catch (e) {} });
+  } catch (e) {}
+  try {
+    if (resetCourseBtn) resetCourseBtn.addEventListener('click', () => { try { clearAutoStop(); setActiveStageLogo(false); } catch (e) {} });
+  } catch (e) {}
 
   // Wire course/stage selects to enable/disable Start/Stop appropriately
   try {
@@ -618,49 +659,97 @@ export function initControls({ onStart = () => {}, onCalibrate = () => {}, onNew
   // When a stage finishes, clear transient animations and mark Start as no longer running
   document.addEventListener('stageFinished', () => {
     try { if (startBtn) { startBtn.classList.remove('running'); startBtn.classList.remove('btn-anim'); } } catch (e) {}
-    try { if (stopBtn) stopBtn.classList.remove('btn-anim'); } catch (e) {}
+  // stopBtn removed from UI; no animation to clear
     try { if (nextStageBtn) nextStageBtn.classList.remove('btn-anim'); } catch (e) {}
     try { updateStageButtonState(); } catch (e) {}
       // Stage finished naturally — timer no longer active
       try { isTimerActive = false; } catch (e) {}
       // Stop pulsing should stop; allow Next to pulse so user can advance
       try { setNextEnabled(true); setNextPulse(true); } catch (e) {}
-      // After natural finish, Start should be disabled to avoid accidental extra time,
-      // but Stop should be enabled so user can clear listening if needed.
-      try { setStartStopEnabled(false, true); } catch (e) {}
-    // Allow repeating the stage (user may click Stop then Start to repeat)
-    try { canRepeatStage = true; } catch (e) {}
+      // After natural finish, Start should be disabled to avoid accidental extra time.
+      // We will keep listening for a short grace period and then stop automatically.
+      try { setStartStopEnabled(false, false); } catch (e) {}
+      // schedule an automatic stop of listening 2s after the time-up beep
+      try {
+        clearAutoStop();
+        // show the active-stage logo during this window
+        setActiveStageLogo(true);
+        // After the time-up beep we keep listening for trailing shots for
+        // 2000ms, show a red post-finish countdown on the main display, then
+        // stop listening and restore the logo/display.
+        const now = performance.now();
+        postStopEndAt = now + 2000;
+        // Save current display text and mark as post-finish (red)
+        try {
+          const displayEl = document.getElementById('display');
+          if (displayEl) {
+            savedDisplayText = displayEl.textContent;
+            displayEl.classList.add('postfinish');
+          }
+        } catch (e) {}
+        // Update the visible countdown every 100ms for smoothness
+        try {
+          postStopInterval = setInterval(() => {
+            try {
+              const rem = Math.max(0, Math.round(postStopEndAt - performance.now()));
+              const displayEl = document.getElementById('display');
+              if (displayEl) displayEl.textContent = formatTime(rem);
+            } catch (e) {}
+          }, 100);
+        } catch (e) {}
+        autoStopTimer = setTimeout(() => {
+          try { stopTimer(); } catch (e) { console.warn('autoStop: stopTimer failed', e); }
+          try { stopListening(); } catch (e) { console.warn('autoStop: stopListening failed', e); }
+          try { stopMic(); } catch (e) { console.warn('autoStop: stopMic failed', e); }
+          try { setNextEnabled(true); setNextPulse(true); } catch (e) {}
+          try { canRepeatStage = true; } catch (e) {}
+          // timerStopped handler will clear the post-finish UI and restore logo
+          autoStopTimer = null;
+        }, 2000);
+      } catch (e) { console.warn('Failed to schedule auto-stop', e); }
+  // Allow repeating the stage (user may click Start to repeat)
+  try { /* canRepeatStage set after auto-stop */ } catch (e) {}
   });
 
   // When a stage starts, animate only Stop; remove Start animation
   document.addEventListener('stageStarted', () => {
     try { if (startBtn) { startBtn.classList.remove('btn-anim'); startBtn.classList.remove('running'); } } catch (e) {}
-    try { if (stopBtn) stopBtn.classList.add('btn-anim'); } catch (e) {}
     try { if (nextStageBtn) nextStageBtn.classList.remove('btn-anim'); } catch (e) {}
     try { updateStageButtonState(); } catch (e) {}
       // Timer is active now
       try { isTimerActive = true; } catch (e) {}
       // Keep Stop pulsing until user clicks it
-      try { if (stopBtn) stopBtn.classList.add('btn-anim'); } catch (e) {}
+      // old Stop animation removed
       // Disable Next while timer is active
       try { setNextEnabled(false); setNextPulse(false); } catch (e) {}
       // While the timer is running, Start must be disabled to prevent adding time;
-      // Stop remains enabled so the user can stop early.
-      try { setStartStopEnabled(false, true); } catch (e) {}
+      // stopping early is handled automatically by the auto-stop flow.
+      try { setStartStopEnabled(false, false); } catch (e) {}
+      // swap to active logo as soon as the stage begins (first beep)
+      try { setActiveStageLogo(true); } catch (e) {}
   });
 
-  // When timer is explicitly stopped (via Stop), clear the active animations
+  // When the timer is stopped (auto-stop or external), clear the active animations
   document.addEventListener('timerStopped', () => {
     try { if (startBtn) startBtn.classList.remove('btn-anim'); } catch (e) {}
-    try { if (stopBtn) stopBtn.classList.remove('btn-anim'); } catch (e) {}
     try { if (nextStageBtn) nextStageBtn.classList.remove('btn-anim'); } catch (e) {}
     try { updateStageButtonState(); } catch (e) {}
       // Timer was stopped externally — ensure active flag cleared and Next is available
       try { isTimerActive = false; } catch (e) {}
       try { setNextEnabled(true); setNextPulse(true); } catch (e) {}
-      // When stopped by the user, allow Start to remain disabled (so they explicitly
-      // advance using Next), but ensure Stop is enabled so audio can be managed.
-    try { setStartStopEnabled(false, true); } catch (e) {}
+      // Clear any pending auto-stop and restore logos immediately
+      try { clearAutoStop(); setActiveStageLogo(false); } catch (e) {}
+    try {
+      // If no course/stage selected, allow Start to be enabled; otherwise
+      // keep Start disabled until user interaction sets state.
+      const courseSel = document.getElementById('courseSelect');
+      const stageSel = document.getElementById('stageSelect');
+      if (!courseSel || !stageSel || !courseSel.value) {
+        setStartStopEnabled(true, false);
+      } else {
+        setStartStopEnabled(false, false);
+      }
+    } catch (e) {}
     try { canRepeatStage = true; } catch (e) {}
   });
   if (resetCourseBtn) resetCourseBtn.addEventListener('click', () => { clearPendingStart(); if (typeof onNewParticipant === 'function') onNewParticipant(); });
@@ -692,5 +781,16 @@ export function initControls({ onStart = () => {}, onCalibrate = () => {}, onNew
   if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', attach); else attach();
 }
 
-export function setUiTotalSecondsUI(v) { const el = document.getElementById('totalSecInput'); if (!el) return; el.value = String(v); try { setTotalSeconds(Number(v)); } catch (e) { /* ignore */ } }
-export function setUiExpectedShotsUI(v) { const el = document.getElementById('shotsCountInput'); if (!el) return; el.value = String(v); try { setExpectedShots(Number(v)); } catch (e) { /* ignore */ } }
+export function setUiTotalSecondsUI(v) {
+  const el = document.getElementById('totalSecInput');
+  if (!el) return;
+  el.value = String(v);
+  try { setTotalSeconds(Number(v)); } catch (e) { /* ignore */ }
+}
+
+export function setUiExpectedShotsUI(v) {
+  const el = document.getElementById('shotsCountInput');
+  if (!el) return;
+  el.value = String(v);
+  try { setExpectedShots(Number(v)); } catch (e) { /* ignore */ }
+}

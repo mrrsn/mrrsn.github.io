@@ -159,9 +159,11 @@ export async function initCourseChooser() {
     });
     // populate course notes
     if (notesEl) notesEl.textContent = course.notes || '';
-    // default to showing scoring instructions first
-    stageSelect.value = 'scoring';
-    applyScoring(course);
+  // default to showing scoring instructions first
+  stageSelect.value = 'scoring';
+  // ensure controls respond to this programmatic change
+  try { stageSelect.dispatchEvent(new Event('change', { bubbles: true })); } catch (e) {}
+  applyScoring(course);
   });
 
   // Auto-apply when the user selects a stage
@@ -182,89 +184,109 @@ export async function initCourseChooser() {
   });
 
   // Next stage button: advance the stage select and apply
-  const nextBtn = document.getElementById('nextStageBtn');
-  if (nextBtn) {
-    nextBtn.addEventListener('click', () => {
-      const courseId = courseSelect.value;
-      const course = courses.find(c => c.id === courseId);
-      if (!course || !course.stages || course.stages.length === 0) return;
-      // If button is currently 'Save', export CSV
-      if (nextBtn.textContent === 'Save') {
-        // Archive the final stage's shots before exporting
-        try {
-            archiveStageShots({ courseId: course.id, courseName: course.name, stageId: getStageAttemptLabel({ courseId: course.id, stageId: Number(stageSelect.value) || null }) || null });
-        } catch (e) {
-          console.warn('archiveStageShots failed during Save', e);
-        }
-
-        const name = prompt('Enter filename (without extension) for participant CSV export', 'participant-results');
-        if (!name) return;
-        try {
-          const csv = exportParticipantCsv();
-          const blob = new Blob([csv], { type: 'text/csv' });
-          const url = URL.createObjectURL(blob);
-          const a = document.createElement('a');
-          a.href = url;
-          a.download = `${name}.csv`;
-          document.body.appendChild(a);
-          a.click();
-          a.remove();
-          URL.revokeObjectURL(url);
-        } catch (e) {
-          console.error('Failed to export participant CSV', e);
-          alert('Export failed: ' + String(e));
-        }
-        return;
-      }
-
-      const sel = stageSelect.value;
-      // If currently viewing scoring instructions, advance to first real stage
-      if (sel === 'scoring') {
-        if (course.stages && course.stages.length > 0) {
-          const first = course.stages[0];
-          stageSelect.value = String(first.id);
-          applyStage(course, first);
-        }
-        return;
-      }
-
-      const current = Number(sel) || 0;
-      // find index of current stage in course.stages
-      const idx = course.stages.findIndex(s => s.id === current);
-      // If we're on the last stage, pressing Next should show scoring instructions and then turn Next->Save
-      if (idx === course.stages.length - 1) {
-        // archive current stage shots into participant store
-        try {
-            archiveStageShots({ courseId: course.id, courseName: course.name, stageId: getStageAttemptLabel({ courseId: course.id, stageId: Number(stageSelect.value) || null }) || null });
-        } catch (e) {
-          console.warn('archiveStageShots failed', e);
-        }
-        // Reset timer state before showing scoring
-        try { resetTimer(); } catch (e) { console.warn('resetTimer failed', e); }
-        // show scoring instructions as the next "stage"
-        stageSelect.value = 'scoring';
-        applyScoring(course);
-        // change Next into Save now that scoring is visible
-        const nextBtnEl = document.getElementById('nextStageBtn'); if (nextBtnEl) nextBtnEl.textContent = 'Save';
-        return;
-      }
-
-      const nextIdx = (idx + 1) % course.stages.length;
-      const nextStage = course.stages[nextIdx];
-      // before advancing archive current stage shots into participant store
+  // The controls module may detach/restore the Next button from the DOM during
+  // initialization. To handle that reliably we provide an initializer that will
+  // wire the button if present, or watch for it to be inserted and wire then.
+  function nextButtonHandler(evt) {
+    // evt may be a DOM event; handler should read current DOM state each time
+    const nextBtnEl = (evt && evt.currentTarget) ? evt.currentTarget : document.getElementById('nextStageBtn');
+    const courseId = courseSelect.value;
+    const course = courses.find(c => c.id === courseId);
+    if (!course || !course.stages || course.stages.length === 0) return;
+    // If button is currently 'Save', export CSV
+    if (nextBtnEl && nextBtnEl.textContent === 'Save') {
       try {
         archiveStageShots({ courseId: course.id, courseName: course.name, stageId: getStageAttemptLabel({ courseId: course.id, stageId: Number(stageSelect.value) || null }) || null });
-      } catch (e) {
-        console.warn('archiveStageShots failed', e);
+      } catch (e) { console.warn('archiveStageShots failed during Save', e); }
+      const name = prompt('Enter filename (without extension) for participant CSV export', 'participant-results');
+      if (!name) return;
+      try {
+        const csv = exportParticipantCsv();
+        const blob = new Blob([csv], { type: 'text/csv' });
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = `${name}.csv`;
+        document.body.appendChild(a);
+        a.click();
+        a.remove();
+        URL.revokeObjectURL(url);
+      } catch (e) { console.error('Failed to export participant CSV', e); alert('Export failed: ' + String(e)); }
+      return;
+    }
+
+    const sel = stageSelect.value;
+    // If currently viewing scoring instructions, advance to first real stage
+    if (sel === 'scoring') {
+      if (course.stages && course.stages.length > 0) {
+        const first = course.stages[0];
+        stageSelect.value = String(first.id);
+        try { stageSelect.dispatchEvent(new Event('change', { bubbles: true })); } catch (e) {}
+        applyStage(course, first);
       }
-      // Reset the timer state (clear current stage shots/display) before applying the next stage
+      return;
+    }
+
+    const current = Number(sel) || 0;
+    // find index of current stage in course.stages
+    const idx = course.stages.findIndex(s => s.id === current);
+    // If we're on the last stage, pressing Next should show scoring instructions and then turn Next->Save
+    if (idx === course.stages.length - 1) {
+      try { archiveStageShots({ courseId: course.id, courseName: course.name, stageId: getStageAttemptLabel({ courseId: course.id, stageId: Number(stageSelect.value) || null }) || null }); } catch (e) { console.warn('archiveStageShots failed', e); }
       try { resetTimer(); } catch (e) { console.warn('resetTimer failed', e); }
-      // update select and apply
-      stageSelect.value = String(nextStage.id);
-      // trigger apply
-      applyStage(course, nextStage);
-      // Stage change — instructions display the current stage so no popup.
+  stageSelect.value = 'scoring';
+  try { stageSelect.dispatchEvent(new Event('change', { bubbles: true })); } catch (e) {}
+  applyScoring(course);
+      const nextBtnEl2 = document.getElementById('nextStageBtn'); if (nextBtnEl2) nextBtnEl2.textContent = 'Save';
+      return;
+    }
+
+    const nextIdx = (idx + 1) % course.stages.length;
+    const nextStage = course.stages[nextIdx];
+    try { archiveStageShots({ courseId: course.id, courseName: course.name, stageId: getStageAttemptLabel({ courseId: course.id, stageId: Number(stageSelect.value) || null }) || null }); } catch (e) { console.warn('archiveStageShots failed', e); }
+    try { resetTimer(); } catch (e) { console.warn('resetTimer failed', e); }
+  stageSelect.value = String(nextStage.id);
+  try { stageSelect.dispatchEvent(new Event('change', { bubbles: true })); } catch (e) {}
+  applyStage(course, nextStage);
+  }
+
+  function initNextButtonEl(el) {
+    if (!el) return;
+    // ensure label defaults to Next
+    try { if (!el.textContent || !el.textContent.trim()) el.textContent = 'Next'; } catch (e) {}
+    // Avoid duplicating handlers by removing any existing nextButtonHandler reference
+    try { el.removeEventListener('click', nextButtonHandler); } catch (e) {}
+    el.addEventListener('click', nextButtonHandler);
+    // Observe text changes so we can react to Save state
+    if (typeof MutationObserver !== 'undefined') {
+      const mo = new MutationObserver(() => {
+        try {
+          const txt = (el.textContent || '').trim();
+          if (txt === 'Save') {
+            try { setStartStopEnabled(false, false); } catch (e) {}
+            try { /* pulse Save visually via controls' helpers */ } catch (e) {}
+          } else {
+            try { /* restore regular state if needed */ } catch (e) {}
+          }
+        } catch (e) { /* ignore */ }
+      });
+      mo.observe(el, { characterData: true, childList: true, subtree: true });
+    }
+  }
+
+  // Wire immediately if present, otherwise watch for the button to be inserted
+  const existingNext = document.getElementById('nextStageBtn');
+  if (existingNext) initNextButtonEl(existingNext);
+  else if (typeof MutationObserver !== 'undefined') {
+    const bodyObserver = new MutationObserver((records, obs) => {
+      const el = document.getElementById('nextStageBtn');
+      if (el) { initNextButtonEl(el); obs.disconnect(); }
     });
+    try { bodyObserver.observe(document.body || document.documentElement, { childList: true, subtree: true }); } catch (e) { /* ignore */ }
+  } else {
+    // Fallback: poll for the element for a short period
+    const poll = setInterval(() => { const el = document.getElementById('nextStageBtn'); if (el) { clearInterval(poll); initNextButtonEl(el); } }, 250);
+    setTimeout(() => clearInterval(poll), 5000);
   }
 
   // When the stage finishes, if this is the last stage of the course change Next -> Save

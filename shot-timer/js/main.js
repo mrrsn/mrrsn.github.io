@@ -47,7 +47,7 @@ document.addEventListener('DOMContentLoaded', async () => {
           const firstStage = Array.from(stageSelect.options).find(o => o.value);
           if (firstStage) {
             stageSelect.value = firstStage.value;
-            stageSelect.dispatchEvent(new Event('change', { bubbles: true }));
+            try { stageSelect.dispatchEvent(new Event('change', { bubbles: true })); } catch (e) {}
             didResetStage = true;
           }
         }
@@ -64,8 +64,8 @@ document.addEventListener('DOMContentLoaded', async () => {
   // or rendering cause tiny height differences. Sync heights after fonts
   // settle and on window resize.
   function syncActionButtonSizes() {
-  // Order: Start, Stop, Next (Stop sits between Start and Next)
-  const ids = ['startBtn', 'stopBtn', 'nextStageBtn'];
+  // Order: Start, Next (Stop removed)
+  const ids = ['startBtn', 'nextStageBtn'];
     const els = ids.map(id => document.getElementById(id)).filter(Boolean);
     if (els.length < 2) return;
     // reset any inline height we previously set

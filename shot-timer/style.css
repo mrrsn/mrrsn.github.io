@@ -155,6 +155,16 @@ html:not([data-theme="dark"]) .dark-logo { opacity: 0; }
   transform: scale(1.06);
 }
 
+/* Post-finish visual countdown (2s) — red, prominent, and slightly larger
+   than the normal display so users notice the auto-stop window. This is
+   applied via JS by adding the .postfinish class to #display. */
+#display.postfinish {
+  color: #ff1a1a; /* vivid red */
+  text-shadow: 0 3px 12px rgba(255,26,26,0.32);
+  transform: scale(1.08);
+  font-weight: 900;
+}
+
 /* Sections – give a little vertical spacing */
 section {
   margin: 1rem 0;
@@ -273,8 +283,8 @@ button.disabled {
 #detectBtn    { background: var(--primary); color: #fff; }
 #calibrateBtn { background: var(--accent); color: #fff; }
 #startBtn     { background: var(--accent); color: #fff; }
-/* Stop button (danger) — placed between Start and Next on mobile/desktop */
-#stopBtn      { background: var(--danger); color: #fff; }
+/* Stop button (danger) — removed; styling kept only for historical reference */
+/* #stopBtn removed from markup — no runtime styles required */
 
 /* Active animation used for Start, Stop and Next to indicate activity/state
    (pulsing glow). Applied instead of a status message for Start/Stop. */

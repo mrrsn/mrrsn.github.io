@@ -58,6 +58,23 @@ export function getAudioContext() {
 }
 
 /**
+ * Ensure the AudioContext is running (not suspended). Some browsers
+ * (notably iOS Safari) keep the context suspended until a user gesture
+ * or explicit resume, and attempting to start audio while suspended can
+ * lead to glitches. This helper resumes the context if needed.
+ */
+export async function ensureAudioRunning() {
+  if (!audioCtx) return;
+  try {
+    if (typeof audioCtx.resume === 'function' && audioCtx.state === 'suspended') {
+      await audioCtx.resume();
+    }
+  } catch (e) {
+    console.warn('ensureAudioRunning failed', e);
+  }
+}
+
+/**
  * Returns true if the browser supports setting the output device programmatically
  * (AudioContext.destination.setSinkId), false otherwise.
  */

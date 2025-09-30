@@ -20,7 +20,15 @@ export function showStatus(message, ms = 3000) {
   // force reflow so that the following class addition triggers transition
   // eslint-disable-next-line no-unused-expressions
   el.offsetWidth;
-  el.textContent = String(message);
+  // Write the message into a dedicated child so appended controls
+  // (spinners, details, buttons) are not lost when updating the text.
+  let msgEl = el.querySelector('.status-message');
+  if (!msgEl) {
+    msgEl = document.createElement('span');
+    msgEl.className = 'status-message';
+    el.insertBefore(msgEl, el.firstChild);
+  }
+  msgEl.textContent = String(message);
   el.classList.add('status-visible');
 
   if (ms > 0) {
@@ -42,4 +50,10 @@ export function hideStatus() {
   // trigger fade-out then hide after transition
   el.classList.remove('status-visible');
   fadeTimer = setTimeout(() => { el.classList.add('hidden'); fadeTimer = null; }, FADE_MS);
+  // Remove transient children to avoid leaving stale controls behind
+  try {
+    const msgEl = el.querySelector('.status-message'); if (msgEl) msgEl.remove();
+    const controls = el.querySelector('.status-controls'); if (controls) controls.remove();
+    const details = el.querySelector('.status-details'); if (details) details.remove();
+  } catch (e) {}
 }

@@ -3,11 +3,16 @@
 :root {
   --bg: #fafafa;
   --text: #222222;
+  --logo-max: 300px; /* default max height for inline logo (increased) */
+  --logo-max-desktop: 700px; /* desktop max height (increased) */
+  --logo-min: 28px; /* minimum sensible inline logo height */
   --muted: #555555;
   --panel-bg: #ffffff;
   --primary: #0066cc;
   --accent: #28a745;
   --danger: #dc3545;
+  --danger-shadow: rgba(220,53,69,0.25);
+  --danger-shadow-strong: rgba(220,53,69,0.32);
   --table-alt: #f0f0f0;
   --status-bg: #f3f6ff;
   --status-text: #0b3b7b;
@@ -31,6 +36,8 @@ html[data-theme="dark"], :root[data-theme="dark"] {
   --primary: #3b82f6;
   --accent: #10b981;
   --danger: #ef4444;
+  --danger-shadow: rgba(239,68,68,0.25);
+  --danger-shadow-strong: rgba(239,68,68,0.32);
   --table-alt: #161616;
   --status-bg: #0f1724;
   --status-text: #cfe8ff;
@@ -54,6 +61,8 @@ html[data-theme="dark"], :root[data-theme="dark"] {
     --primary: #3b82f6;
     --accent: #10b981;
     --danger: #ef4444;
+  --danger-shadow: rgba(239,68,68,0.25);
+  --danger-shadow-strong: rgba(239,68,68,0.32);
     --table-alt: #161616;
     --status-bg: #0f1724;
     --status-text: #cfe8ff;
@@ -86,11 +95,15 @@ h1 {
 }
 
 .heading-wrap {
+  /* Use flex so logo and heading are always centered and vertically stacked */
+  display: flex;
+  flex-direction: column;
+  align-items: center;
   text-align: center;
   clear: both;
-  display: block;
   position: relative;
   z-index: 2;
+  gap: 0.5rem;
 }
 
 /* Ensure the page header area clears floats so heading-wrap can sit centered */
@@ -100,21 +113,28 @@ h1 {
 .logo-wrap {
   display: grid; /* stack logos in the same grid cell so they occupy layout height */
   place-items: center;
-  margin-bottom: 0.9rem; /* increased gap so logo doesn't touch heading */
-  width: 15%; /* container width controls image size */
-  margin-left: auto;
-  margin-right: auto;
+  margin-bottom: 0.6rem; /* gap between logo and heading */
+  /* Keep the logo box compact and consistent across themes. Use an intrinsic
+     size with a max-height so logos don't explode when container widths change. */
+  width: auto;
 }
 .logo {
-  max-width: 100%;
-  height: auto;
   display: block;
   grid-area: 1 / 1 / 2 / 2; /* stack logos in same grid cell */
+  width: auto; /* allow natural aspect ratio */
+  height: auto;
+  /* Constrain visual size by height so different image aspect ratios behave
+     consistently. Increase on larger screens for better balance. */
+  min-height: 60px;
+  max-height: var(--logo-max);
 }
 .light-logo,
-.dark-logo {
+.dark-logo,
+.active-stage-logo {
   grid-area: 1 / 1 / 2 / 2;
-  width: 100%;
+  /* Ensure all logos use the same sizing rules above. Explicitly set
+     width:auto so they scale by height constraint not by width percent. */
+  width: auto;
   height: auto;
   opacity: 0;
   transition: opacity 300ms ease-in-out;
@@ -134,7 +154,47 @@ html:not([data-theme="dark"]) .dark-logo { opacity: 0; }
 }
 
 @media (min-width: 900px) {
-  .logo-wrap { width: 10%; }
+  /* Increase allowed logo height on desktop for better visual balance */
+  /* desktop max uses variable so it's easy to tune */
+  .logo { max-height: var(--logo-max-desktop); }
+}
+
+/* Inline SVG coloring: use currentColor so we can control via the color property
+   of the container. Default: dark-on-light, light-on-dark. When active (running),
+   make the logo vivid red. */
+.svg-logo { color: var(--text); }
+html[data-theme="dark"] .svg-logo { color: #fff; }
+.svg-logo.active { color: var(--danger); }
+/* Smooth color transition and subtle glow when active */
+.svg-logo { transition: color 220ms ease, filter 220ms ease; display: block; width: auto; height: auto; /* use CSS variables for easy tuning */ max-height: var(--logo-max); min-height: var(--logo-min); opacity: 1 !important; visibility: visible !important; }
+.svg-logo path { fill: currentColor !important; }
+.svg-logo.active { color: var(--danger); filter: drop-shadow(0 6px 18px rgba(255,26,26,0.25)) drop-shadow(0 2px 6px rgba(255,26,26,0.12)); }
+
+/* Prevent accidental text selection / tap highlight when interacting with the
+   logo (double-tap used to cycle courses). Also ensure touch interactions
+   are handled cleanly. Applies to heading and logo containers. */
+.heading-wrap, .logo-wrap, .logo, .svg-logo, h1 {
+  -webkit-user-select: none;
+  -moz-user-select: none;
+  -ms-user-select: none;
+  user-select: none;
+  -webkit-tap-highlight-color: transparent;
+  touch-action: manipulation;
+}
+
+/* Stronger active-state override so the red active color and glow win in
+   both light and dark themes (use !important to avoid specificity/order issues). */
+html[data-theme="dark"] .svg-logo.active,
+html:not([data-theme="dark"]) .svg-logo.active,
+.svg-logo.active {
+  color: var(--danger) !important;
+  filter: drop-shadow(0 6px 20px rgba(255,40,40,0.30)) !important;
+}
+
+@media (min-width: 900px) {
+  /* Allow the inline SVG to grow larger on wide screens to match .logo */
+  /* desktop: use variable so it's easy to change */
+  .svg-logo { max-height: var(--logo-max-desktop) !important; }
 }
 
 /* Countdown */
@@ -150,8 +210,8 @@ html:not([data-theme="dark"]) .dark-logo { opacity: 0; }
 /* Pre-start visual: make the clock red and slightly larger to mimic a rocket
    launch countdown. Applied via JS by adding the .prestart class to the #display. */
 #display.prestart {
-  color: #ff2d2d; /* vivid red */
-  text-shadow: 0 2px 8px rgba(255,45,45,0.25);
+  color: var(--danger); /* use same red as the logo */
+  text-shadow: 0 2px 8px var(--danger-shadow);
   transform: scale(1.06);
 }
 
@@ -159,8 +219,8 @@ html:not([data-theme="dark"]) .dark-logo { opacity: 0; }
    than the normal display so users notice the auto-stop window. This is
    applied via JS by adding the .postfinish class to #display. */
 #display.postfinish {
-  color: #ff1a1a; /* vivid red */
-  text-shadow: 0 3px 12px rgba(255,26,26,0.32);
+  color: var(--danger); /* same red as active logo */
+  text-shadow: 0 3px 12px var(--danger-shadow-strong);
   transform: scale(1.08);
   font-weight: 900;
 }
@@ -365,6 +425,72 @@ button.disabled {
 .status.success { background: var(--status-success-bg); color: var(--status-success-text); }
 .status.error   { background: var(--status-error-bg); color: var(--status-error-text); }
 .hidden { display: none !important; }
+
+/* Status details UI (diagnostics) */
+.status-details {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: 0.5rem;
+  margin-top: 0.5rem;
+}
+.status-details pre {
+  width: 100%;
+  max-width: 800px;
+  text-align: left;
+  background: rgba(0,0,0,0.03);
+  color: inherit;
+  border-radius: 6px;
+  padding: 0.5rem;
+  overflow: auto;
+}
+/* Secondary button styling for details/retry/copy — visible on both themes */
+.btn-secondary {
+  background: transparent;
+  color: inherit;
+  border: 1px solid rgba(0,0,0,0.12);
+  padding: 0.45rem 0.6rem;
+  border-radius: 6px;
+  cursor: pointer;
+}
+.btn-secondary:hover { filter: brightness(0.96); }
+html[data-theme="dark"] .btn-secondary { border-color: rgba(255,255,255,0.08); }
+
+/* Logo tip: wider, centered hint above the logo with a dismiss button */
+.logo-tip {
+  /* Make the tip much wider — span most of the viewport so it feels large and
+     prominent. Center it relative to the viewport rather than the page container. */
+  position: relative;
+  left: 50%;
+  transform: translateX(-50%);
+  width: 96vw;
+  max-width: none; /* allow full viewport width */
+  margin: 0 0 0.75rem 0;
+  padding: 0.6rem 1rem;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.75rem;
+  border-radius: 8px;
+  background: var(--panel-bg);
+  color: var(--text);
+  border: 1px solid rgba(0,0,0,0.06);
+  box-shadow: 0 6px 18px rgba(0,0,0,0.04);
+  box-sizing: border-box;
+}
+.logo-tip .btn-secondary { margin-left: 1rem; }
+
+@media (max-width: 900px) {
+  .logo-tip { max-width: calc(100% - 1rem); padding: 0.5rem; gap: 0.6rem; }
+}
+
+/* Dark mode tweak for logo-tip */
+html[data-theme="dark"] .logo-tip {
+  background: rgba(255,255,255,0.02);
+  border-color: rgba(255,255,255,0.06);
+  box-shadow: none;
+  color: var(--text);
+}
 
 /* Fade animation for status messages. Uses .status-visible to trigger
    the opacity/translate transition. The JS helper adds/removes .hidden
@@ -807,3 +933,64 @@ html[data-theme="dark"] .collapse-toggle:hover {
   /* Slightly reduce the gap above shots panel too */
   #shotsPanel { margin-top: 0.5rem; }
 }
+
+/* High-specificity enforced sizing for the logo requested by the user.
+   Use !important to override earlier rules so the inline SVG renders large
+   regardless of other constraints. This forces a 9× visual scale (864px
+   baseline) while allowing a larger desktop max via the existing media rule. */
+.heading-wrap .logo.svg-logo,
+.logo.svg-logo,
+.logo-wrap > .logo,
+.logo-wrap > .svg-logo {
+  width: auto !important;
+  height: auto !important;
+  max-height: var(--logo-max) !important; /* ~20% of previous huge baseline */
+  max-width: none !important; /* don't constrain by container width */
+  overflow: visible !important;
+}
+
+/* Desktop-specific high-specificity override: force logo to use the desktop max
+   when viewport is wide. This helps ensure the SVG grows to the desired size
+   on large screens even if other rules attempt to constrain it. */
+@media (min-width: 900px) {
+  .heading-wrap .logo.svg-logo,
+  .logo.svg-logo,
+  .logo-wrap > .logo,
+  .logo-wrap > .svg-logo {
+    max-height: var(--logo-max-desktop) !important;
+    overflow: visible !important;
+  }
+}
+
+/* Enforce exact logo width per device type:
+   - Phones (<600px): 200px wide
+   - Tablet/Desktop (>=600px): 400px wide
+   Use high-specificity selectors and !important so these rules win over
+   previous max-height / responsive constraints. Height is auto to preserve
+   SVG aspect ratio. */
+@media (max-width: 599px) {
+  .heading-wrap .logo.svg-logo,
+  .logo.svg-logo,
+  .logo-wrap > .logo,
+  .logo-wrap > .svg-logo {
+    width: 150px !important;
+    height: auto !important;
+    max-width: none !important;
+    max-height: none !important;
+    overflow: visible !important;
+  }
+}
+
+@media (min-width: 600px) {
+  .heading-wrap .logo.svg-logo,
+  .logo.svg-logo,
+  .logo-wrap > .logo,
+  .logo-wrap > .svg-logo {
+    width: 200px !important;
+    height: auto !important;
+    max-width: none !important;
+    max-height: none !important;
+    overflow: visible !important;
+  }
+}
+

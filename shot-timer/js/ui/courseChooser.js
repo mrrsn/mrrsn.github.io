@@ -101,7 +101,7 @@ export async function initCourseChooser() {
     const metaEl = document.getElementById('stageMeta');
     const roundsEl = document.getElementById('stageRounds');
     const detailsEl = document.getElementById('stageDetails');
-    if (titleEl) titleEl.textContent = 'Scoring Instructions';
+  if (titleEl) titleEl.textContent = (course && course.name) ? `${course.name} Scoring Instructions` : 'Scoring Instructions';
     if (metaEl) metaEl.textContent = '';
     if (roundsEl) roundsEl.textContent = '';
     if (detailsEl) {
@@ -143,6 +143,13 @@ export async function initCourseChooser() {
     const notesEl = document.getElementById('courseNotes');
     if (!course) {
       if (notesEl) notesEl.textContent = 'Select a course to see course notes.';
+      // Reset the stage instruction area to reflect no selection
+      try {
+        const titleEl = document.getElementById('stageTitle'); if (titleEl) titleEl.textContent = 'No stage selected';
+        const metaEl = document.getElementById('stageMeta'); if (metaEl) metaEl.textContent = '';
+        const roundsEl = document.getElementById('stageRounds'); if (roundsEl) roundsEl.textContent = '';
+        const detailsEl = document.getElementById('stageDetails'); if (detailsEl) detailsEl.textContent = 'Select a course to see instructions here.';
+      } catch (e) { /* ignore */ }
       return;
     }
     // populate a pseudo-stage for scoring instructions first, then real stages

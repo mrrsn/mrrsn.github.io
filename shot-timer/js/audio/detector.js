@@ -25,7 +25,7 @@ export function setShotCallback(cb) {
  * Internal: start the microphone, create an AnalyserNode.
  * Called lazily the first time we need to listen.
  */
-async function initMic() {
+export async function initMic() {
   if (micStream) return; // already initialized
   if (__initMicInProgress) { console.debug('initMic: already in progress'); return; }
   __initMicInProgress = true;
@@ -34,7 +34,7 @@ async function initMic() {
   try {
     if (!navigator.mediaDevices || typeof navigator.mediaDevices.getUserMedia !== 'function') {
       console.error('initMic: navigator.mediaDevices.getUserMedia not available');
-      const statusEl = document.getElementById('status'); if (statusEl) statusEl.textContent = 'Microphone API not available.';
+  const statusEl = document.getElementById('status'); if (statusEl) { try { setStatus('Microphone API not available.', 'error'); } catch (e) { statusEl.textContent = 'Microphone API not available.'; } }
       return;
     }
     micStream = await navigator.mediaDevices.getUserMedia(constraints);
@@ -42,7 +42,7 @@ async function initMic() {
   } catch (err) {
     console.error('getUserMedia failed in initMic:', err);
     const statusEl = document.getElementById('status');
-    if (statusEl) statusEl.textContent = 'Could not access microphone.';
+  if (statusEl) { try { setStatus('Could not access microphone.', 'error'); } catch (e) { statusEl.textContent = 'Could not access microphone.'; } }
     return;
   }
   const ctx = getAudioContext();

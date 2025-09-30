@@ -1,8 +1,8 @@
 // controls.js — clean single implementation
 import { setTotalSeconds, setExpectedShots, setThreshold, setDebounceMs, setBeepOnShot, getBeepOnShot } from '../timer/config.js';
 import { resetTimer, stopTimer, incrementStageAttempt, setStageContext } from '../timer/core.js';
-import { setOutputDevice, getAudioContext, supportsSetSinkId } from '../audio/context.js';
-import { pollDetector, setListenMode, stopMic } from '../audio/detector.js';
+import { setOutputDevice, getAudioContext, supportsSetSinkId, ensureAudioRunning } from '../audio/context.js';
+import { pollDetector, setListenMode, stopMic, initMic } from '../audio/detector.js';
 import { setRmsColumnVisible } from './shotsTable.js';
 import { playBeep } from '../audio/beep.js';
 import { formatTime } from '../timer/utils.js';
@@ -13,15 +13,188 @@ let __populateDevicesInProgress = false;
 let __isListening = false;
 let __deviceChangeHandlerAdded = false;
 let __autoDeviceAllowed = false;
+// Timer handle used to auto-clear the status area; stored so we can cancel when
+// the user opens the Details panel or clicks Close.
+let statusClearTimer = null;
 function setStatus(msg, type = '') {
   const el = document.getElementById('status');
   if (!el) return;
+  // Ensure the status container is visible (CSS uses .status-visible to fade it in)
   el.classList.remove('hidden', 'error', 'success');
+  el.classList.add('status-visible');
   if (type === 'error') el.classList.add('error');
   if (type === 'success') el.classList.add('success');
-  el.textContent = msg;
+  // Instead of stomping the entire element's textContent (which would
+  // remove appended controls like spinners or Details), write the
+  // message into a dedicated child node. Also ensure a '.status-controls'
+  // container exists for transient controls appended by callers.
+  let msgEl = el.querySelector('.status-message');
+  if (!msgEl) {
+    msgEl = document.createElement('span');
+    msgEl.className = 'status-message';
+    // insert at top so message is always first
+    el.insertBefore(msgEl, el.firstChild);
+  }
+  msgEl.textContent = msg;
+  // ensure controls container exists
+  let controls = el.querySelector('.status-controls');
+  if (!controls) {
+    controls = document.createElement('div');
+    controls.className = 'status-controls';
+    controls.style.marginTop = '0.25rem';
+    el.appendChild(controls);
+  }
 }
-function clearStatus() { const el = document.getElementById('status'); if (!el) return; el.classList.add('hidden'); }
+function clearStatus() {
+  const el = document.getElementById('status');
+  if (!el) return;
+  // hide and clear any timers
+  el.classList.add('hidden');
+  el.classList.remove('status-visible', 'error', 'success');
+  if (statusClearTimer) { clearTimeout(statusClearTimer); statusClearTimer = null; }
+  // Remove transient children to avoid stale controls lingering
+  try {
+    const msgEl = el.querySelector('.status-message'); if (msgEl) msgEl.remove();
+    const controls = el.querySelector('.status-controls'); if (controls) controls.remove();
+    const existing = el.querySelector('.status-details'); if (existing) existing.remove();
+  } catch (e) {}
+}
+
+function scheduleClear(ms) {
+  try {
+    if (statusClearTimer) { clearTimeout(statusClearTimer); statusClearTimer = null; }
+    statusClearTimer = setTimeout(() => { try { clearStatus(); } catch (e) {} finally { statusClearTimer = null; } }, ms);
+  } catch (e) { /* ignore timer errors */ }
+}
+
+// Build a diagnostic object suitable for display/copying
+function buildDeviceDiagnostics(devices, permState) {
+  const mics = devices.filter(d => d.kind === 'audioinput');
+  const spks = devices.filter(d => d.kind === 'audiooutput');
+  const labelHidden = mics.some(m => !m.label || m.label.trim() === '');
+  return {
+    when: new Date().toISOString(),
+    ua: navigator.userAgent || '',
+    permission: permState || 'unknown',
+    sinkSupported: (typeof HTMLAudioElement.prototype.setSinkId === 'function'),
+    counts: { mics: mics.length, speakers: spks.length },
+    devices: devices.map(d => ({ kind: d.kind, label: d.label || '(hidden)', id: (d.deviceId||'').slice(0,8) })),
+    labelHidden
+  };
+}
+
+// Show a status message plus a Details toggle inside the existing #status
+function showStatusWithDetails(message, type, diag, retryFn) {
+  try {
+    setStatus(message, type);
+  const statusEl = document.getElementById('status');
+  if (!statusEl) return;
+    // remove any existing details container
+  const existing = statusEl.querySelector('.status-details');
+  if (existing) existing.remove();
+
+  const ctrl = document.createElement('div');
+  ctrl.className = 'status-details';
+  ctrl.style.marginTop = '0.5rem';
+    // Details toggle link
+    const detailsBtn = document.createElement('button');
+    detailsBtn.type = 'button';
+    detailsBtn.className = 'btn-secondary';
+    detailsBtn.textContent = 'Details';
+    detailsBtn.style.marginRight = '0.5rem';
+    ctrl.appendChild(detailsBtn);
+
+    // Retry button (if provided)
+    if (typeof retryFn === 'function') {
+      const retryBtn = document.createElement('button');
+      retryBtn.type = 'button';
+      retryBtn.className = 'btn-secondary';
+      retryBtn.textContent = 'Retry';
+      retryBtn.style.marginRight = '0.5rem';
+      retryBtn.addEventListener('click', () => { try { retryFn(); } catch (e) { console.warn('Retry failed', e); } });
+      ctrl.appendChild(retryBtn);
+    }
+
+    // Close button to let the user dismiss the status/details manually
+    const closeBtn = document.createElement('button');
+    closeBtn.type = 'button';
+    closeBtn.className = 'btn-secondary';
+    closeBtn.textContent = 'Close';
+    closeBtn.style.marginLeft = '0.25rem';
+    closeBtn.addEventListener('click', () => { try { clearStatus(); } catch (e) { console.warn('Close failed', e); } });
+    ctrl.appendChild(closeBtn);
+
+    // Copy diagnostics button
+    const copyBtn = document.createElement('button');
+    copyBtn.type = 'button';
+    copyBtn.className = 'btn-secondary';
+    copyBtn.textContent = 'Copy diagnostics';
+    copyBtn.style.marginRight = '0.5rem';
+    ctrl.appendChild(copyBtn);
+
+    // Hidden pre element with JSON payload
+    const pre = document.createElement('pre');
+    pre.style.display = 'none';
+    pre.style.maxHeight = '200px';
+    pre.style.overflow = 'auto';
+    pre.style.marginTop = '0.5rem';
+    pre.style.background = 'rgba(0,0,0,0.03)';
+    pre.style.padding = '0.5rem';
+    pre.textContent = diag ? JSON.stringify(diag, null, 2) : '{}';
+    ctrl.appendChild(pre);
+
+    // Append the details/control block into the dedicated status-controls
+    // container so it doesn't conflict with the status message node.
+    let controls = statusEl.querySelector('.status-controls');
+    if (!controls) {
+      controls = document.createElement('div');
+      controls.className = 'status-controls';
+      controls.style.marginTop = '0.25rem';
+      statusEl.appendChild(controls);
+    }
+    controls.appendChild(ctrl);
+    // Toggle behavior
+    let open = false;
+    detailsBtn.addEventListener('click', () => {
+      open = !open;
+      pre.style.display = open ? '' : 'none';
+      detailsBtn.textContent = open ? 'Hide details' : 'Details';
+      // If the user opened details, cancel any auto-clear so they can read/copy
+      try { if (open && statusClearTimer) { clearTimeout(statusClearTimer); statusClearTimer = null; } } catch (e) {}
+    });
+
+    copyBtn.addEventListener('click', async () => {
+      try {
+        if (navigator.clipboard && navigator.clipboard.writeText) {
+          await navigator.clipboard.writeText(pre.textContent);
+          setStatus('Diagnostics copied to clipboard', 'success');
+          scheduleClear(1500);
+        } else {
+          // fallback: select and copy
+          const ta = document.createElement('textarea');
+          ta.value = pre.textContent;
+          document.body.appendChild(ta);
+          ta.select();
+          document.execCommand('copy');
+          ta.remove();
+          setStatus('Diagnostics copied to clipboard', 'success');
+          scheduleClear(1500);
+        }
+      } catch (e) {
+        console.warn('Copy diagnostics failed', e);
+        setStatus('Failed to copy diagnostics', 'error');
+        scheduleClear(2000);
+      }
+    });
+
+  // statusEl.appendChild(ctrl);
+    // If a retry function was provided, keep the status visible indefinitely until user action.
+    // Otherwise, schedule a default auto-clear in 3s so transient messages don't linger.
+    try {
+      if (typeof retryFn !== 'function') scheduleClear(3000);
+    } catch (e) {}
+  } catch (e) { console.warn('showStatusWithDetails failed', e); }
+}
 
 // Briefly add a 'pressed' class to a button to indicate it was clicked.
 function transientPress(btn, ms = 250) {
@@ -51,12 +224,36 @@ async function populateDeviceLists() {
   __populateDevicesInProgress = true;
   console.debug('populateDeviceLists: start');
   const allowed = await requestMicPermission(); if (!allowed) { console.debug('populateDeviceLists: permission denied'); __populateDevicesInProgress = false; return; }
+  // Best-effort: query permission state for diagnostics (may not be supported)
+  let permState = 'unknown';
+  try {
+    if (navigator.permissions && typeof navigator.permissions.query === 'function') {
+      try {
+        const p = await navigator.permissions.query({ name: 'microphone' });
+        permState = p && p.state ? p.state : permState;
+      } catch (err) { /* some browsers reject this query shape */ }
+    }
+  } catch (e) { /* ignore */ }
   const micSelect = document.getElementById('micSelect');
   const spkSelect = document.getElementById('speakerSelect');
   if (!micSelect || !spkSelect) return;
   const prevMic = micSelect.value, prevSpk = spkSelect.value;
   const detectBtn = document.getElementById('detectBtn'); if (detectBtn) detectBtn.disabled = true;
-  const statusEl = document.getElementById('status'); if (statusEl) { statusEl.textContent = 'Scanning devices'; const spin = document.createElement('span'); spin.className = 'spinner'; statusEl.appendChild(spin); }
+  const statusEl = document.getElementById('status');
+  if (statusEl) {
+    setStatus('Scanning devices');
+    const spin = document.createElement('span');
+    spin.className = 'spinner';
+    // place spinner in the controls container so it doesn't get overwritten
+    let controls = statusEl.querySelector('.status-controls');
+    if (!controls) {
+      controls = document.createElement('div');
+      controls.className = 'status-controls';
+      controls.style.marginTop = '0.25rem';
+      statusEl.appendChild(controls);
+    }
+    controls.appendChild(spin);
+  }
   micSelect.innerHTML = ''; spkSelect.innerHTML = '';
   let devices = [];
   try {
@@ -66,7 +263,15 @@ async function populateDeviceLists() {
   catch (e) {
     console.warn('populateDeviceLists: enumerateDevices failed', e);
     if (detectBtn) detectBtn.disabled = false;
-    const opt = document.createElement('option'); opt.disabled = true; opt.textContent = 'Could not enumerate devices'; micSelect.appendChild(opt); spkSelect.appendChild(opt.cloneNode(true)); if (statusEl) setStatus('Could not enumerate audio devices. Check microphone permission.', 'error'); return;
+    const opt = document.createElement('option'); opt.disabled = true; opt.textContent = 'Could not enumerate devices'; micSelect.appendChild(opt); spkSelect.appendChild(opt.cloneNode(true));
+    // Build diagnostics and surface them with a Details/Retry UI so users can copy/share
+    try {
+      const diag = buildDeviceDiagnostics(devices || [], permState);
+      if (statusEl) showStatusWithDetails('Could not enumerate audio devices. Check microphone permission.', 'error', diag, async () => { try { __autoDeviceAllowed = true; await populateDeviceLists(); } catch (err) { console.warn('Retry populateDeviceLists failed', err); } });
+    } catch (err) {
+      if (statusEl) setStatus('Could not enumerate audio devices. Check microphone permission.', 'error');
+    }
+    return;
   }
   finally { if (detectBtn) detectBtn.disabled = false; }
   __populateDevicesInProgress = false;
@@ -90,7 +295,14 @@ async function populateDeviceLists() {
       // Do not create an explanatory tip on mobile/iOS to avoid extra UI clutter.
     }
   } catch (e) { /* ignore */ }
-  if (prevMic) micSelect.value = prevMic; if (prevSpk) spkSelect.value = prevSpk; if (statusEl) { setStatus(`Found ${micSelect.options.length} mic(s) and ${spkSelect.options.length} speaker(s)`, 'success'); setTimeout(clearStatus, 3000); }
+  if (prevMic) micSelect.value = prevMic; if (prevSpk) spkSelect.value = prevSpk;
+  // Build diagnostics and surface a richer status message so users can copy details or retry
+  try {
+    const diag = buildDeviceDiagnostics(devices, permState);
+    if (statusEl) showStatusWithDetails(`Found ${micSelect.options.length} mic(s) and ${spkSelect.options.length} speaker(s)`, 'success', diag, async () => { try { __autoDeviceAllowed = true; await populateDeviceLists(); } catch (err) { console.warn('Retry populateDeviceLists failed', err); } });
+  } catch (e) {
+    if (statusEl) { setStatus(`Found ${micSelect.options.length} mic(s) and ${spkSelect.options.length} speaker(s)`, 'success'); setTimeout(clearStatus, 3000); }
+  }
   console.debug('populateDeviceLists: finished', { mics: micSelect.options.length, speakers: spkSelect.options.length });
 }
 
@@ -143,7 +355,21 @@ export function initControls({ onStart = () => {}, onCalibrate = () => {}, onNew
     async function startListening() {
       if (__isListening || listenRaf) return;
       __isListening = true;
-      try { const ctx = getAudioContext(); if (ctx && ctx.state === 'suspended' && typeof ctx.resume === 'function') await ctx.resume(); } catch (e) { /* ignore */ }
+        // Prime the mic and resume the audio context before entering Listen mode.
+        let primed = false;
+        try {
+          await initMic();
+          await ensureAudioRunning();
+          primed = true;
+        } catch (e) {
+          console.warn('startListening: priming audio failed', e);
+          primed = false;
+        }
+        try {
+          if (primed) {
+            try { setStatus('Audio primed', 'success'); scheduleClear(5000); } catch (e) {}
+          }
+        } catch (e) {}
       try { setListenMode(true); } catch (e) { console.warn('Could not set Listen mode:', e); }
   // indicate listening via animation; the Listen control shows 'Stop' while active
       const sleep = ms => new Promise(res => setTimeout(res, ms));
@@ -308,6 +534,18 @@ export function initControls({ onStart = () => {}, onCalibrate = () => {}, onNew
   // Force Start to be disabled for the 'no stage' state so the UI is consistent.
   try { setStartStopEnabled(false, false); } catch (e) {}
       }
+      // Additionally, when the timer is active, prevent the user from changing
+      // the selected course or stage to avoid mid-run context switches.
+      try {
+        if (courseSel) {
+          courseSel.disabled = isTimerActive;
+          courseSel.setAttribute('aria-disabled', String(isTimerActive));
+        }
+        if (stageSel) {
+          stageSel.disabled = isTimerActive;
+          stageSel.setAttribute('aria-disabled', String(isTimerActive));
+        }
+      } catch (e) { /* ignore */ }
     } catch (e) { /* ignore */ }
   }
 
@@ -369,6 +607,20 @@ export function initControls({ onStart = () => {}, onCalibrate = () => {}, onNew
       const isMobile = isMobileUa || prefersCoarse;
   const initial = isMobile ? 160 : 100;
       applyZoom(initial);
+    } catch (e) { /* ignore */ }
+    // Ensure phone default zoom is applied on every full page load. Some
+    // browsers may modify root font-size after DOMContentLoaded; reapply on
+    // the window load event to guarantee the mobile default of 160%.
+    try {
+      window.addEventListener('load', () => {
+        try {
+          const ua2 = navigator.userAgent || '';
+          const isMobileUa2 = /Mobi|Android|iPhone|iPad|iPod|Opera Mini|IEMobile|WPDesktop/i.test(ua2);
+          const prefersCoarse2 = window.matchMedia && window.matchMedia('(pointer: coarse)').matches;
+          const isMobile2 = isMobileUa2 || prefersCoarse2;
+          if (isMobile2) applyZoom(160);
+        } catch (err) { /* ignore */ }
+      });
     } catch (e) { /* ignore */ }
     function stepZoom(direction) {
       try {
@@ -504,6 +756,9 @@ export function initControls({ onStart = () => {}, onCalibrate = () => {}, onNew
   let originalLightLogoDisplay = null;
   let originalDarkLogoDisplay = null;
   let originalActiveLogoDisplay = null;
+  let originalLightLogoOpacity = null;
+  let originalDarkLogoOpacity = null;
+  let originalActiveLogoOpacity = null;
   let logoActive = false;
 
   function clearAutoStop() {
@@ -520,26 +775,109 @@ export function initControls({ onStart = () => {}, onCalibrate = () => {}, onNew
 
   function setActiveStageLogo(active) {
     try {
-      const light = document.querySelector('.light-logo');
-      const dark = document.querySelector('.dark-logo');
-      const activeEl = document.querySelector('.active-stage-logo');
-      // Cache original display values on first use so we can restore them
-      if (originalLightLogoDisplay === null && light) originalLightLogoDisplay = light.style.display || '';
-      if (originalDarkLogoDisplay === null && dark) originalDarkLogoDisplay = dark.style.display || '';
-      if (originalActiveLogoDisplay === null && activeEl) originalActiveLogoDisplay = activeEl.style.display || '';
-      if (active) {
-        if (light) light.style.display = 'none';
-        if (dark) dark.style.display = 'none';
-        if (activeEl) activeEl.style.display = '';
-        logoActive = true;
-      } else {
-        if (light) light.style.display = originalLightLogoDisplay;
-        if (dark) dark.style.display = originalDarkLogoDisplay;
-        if (activeEl) activeEl.style.display = originalActiveLogoDisplay;
-        logoActive = false;
-      }
+      const svg = document.querySelector('.svg-logo');
+      if (!svg) return;
+      if (active) svg.classList.add('active'); else svg.classList.remove('active');
+      logoActive = !!active;
     } catch (e) { console.warn('setActiveStageLogo failed', e); }
   }
+
+    // Fun feature: double-click or double-tap the logo to cycle the selected course.
+    // This cycles through `#courseSelect` options and then back to none.
+    try {
+      // Single inline SVG logo now — listen for dblclick/double-tap on it
+      const logos = document.querySelectorAll('.svg-logo');
+      if (logos && logos.length > 0) {
+        // Logo tip: show a small one-time hint above the logo explaining
+        // the double-click/double-tap trick. Persist dismissal in localStorage
+        // so users don't see it again.
+        try {
+          const TIP_KEY = 'shot-timer-logo-tip-dismissed';
+          const dismissed = (() => { try { return localStorage.getItem(TIP_KEY) === '1'; } catch (e) { return false; } })();
+          if (!dismissed) {
+            const firstLogo = logos[0];
+            const tip = document.createElement('div');
+            tip.className = 'logo-tip input-hint';
+            tip.style.display = 'flex';
+            tip.style.alignItems = 'center';
+            tip.style.gap = '0.5rem';
+            tip.style.marginBottom = '0.5rem';
+            tip.setAttribute('role', 'status');
+            tip.setAttribute('aria-live', 'polite');
+            const txt = document.createElement('span');
+            txt.textContent = 'Tip: double-tap or double-click the logo to quickly cycle courses.';
+            const btn = document.createElement('button');
+            btn.type = 'button';
+            btn.className = 'btn-secondary';
+            btn.textContent = 'Got it!';
+            btn.setAttribute('aria-label', 'Dismiss logo tip');
+            btn.addEventListener('click', () => {
+              try { localStorage.setItem(TIP_KEY, '1'); } catch (e) {}
+              try { tip.remove(); } catch (e) {}
+            });
+            tip.appendChild(txt);
+            tip.appendChild(btn);
+            try {
+              // insert before the first logo element so it visually appears above
+              const parent = firstLogo.parentNode || document.body;
+              parent.insertBefore(tip, firstLogo);
+            } catch (e) { document.body.insertBefore(tip, document.body.firstChild); }
+          }
+        } catch (e) { /* ignore tip errors */ }
+        logos.forEach(logo => {
+          try {
+            logo.style.cursor = 'pointer';
+            // Desktop double-click
+            logo.addEventListener('dblclick', (ev) => {
+              try { cycleCourse(logo); } catch (e) { console.warn('logo dblclick cycle failed', e); }
+            });
+            // Touch double-tap detection
+            let lastTap = 0;
+            logo.addEventListener('touchend', (ev) => {
+              try {
+                const now = Date.now();
+                const delta = now - lastTap;
+                // Consider two taps within 350ms a double-tap
+                if (delta > 0 && delta < 350) {
+                  ev.preventDefault();
+                  try { cycleCourse(logo); } catch (e) { console.warn('logo double-tap cycle failed', e); }
+                  lastTap = 0;
+                } else {
+                  lastTap = now;
+                }
+              } catch (e) { /* ignore */ }
+            }, { passive: false });
+          } catch (e) { /* ignore per-element errors */ }
+        });
+      }
+    } catch (e) { /* ignore top-level */ }
+
+    // Helper: advance the courseSelect one step (or clear selection when past last)
+    function cycleCourse(logoEl) {
+      try {
+        const courseSelect = document.getElementById('courseSelect');
+        if (!courseSelect) return;
+        // Prevent cycling courses while a stage timer is active
+        if (isTimerActive) {
+          try { setStatus('Cannot change course while timer is running', 'error'); scheduleClear(3000); } catch (e) {}
+          return;
+        }
+        const opts = courseSelect.options;
+        if (!opts || opts.length === 0) return;
+        let idx = courseSelect.selectedIndex;
+        if (idx === -1) idx = 0; else idx = idx + 1;
+        if (idx >= opts.length) {
+          // deselect (set to none)
+          try { courseSelect.value = ''; } catch (e) { courseSelect.selectedIndex = -1; }
+          try { courseSelect.dispatchEvent(new Event('change', { bubbles: true })); } catch (e) {}
+          if (logoEl) transientPress(logoEl);
+          return;
+        }
+        courseSelect.selectedIndex = idx;
+        try { courseSelect.dispatchEvent(new Event('change', { bubbles: true })); } catch (e) {}
+        if (logoEl) transientPress(logoEl);
+      } catch (e) { console.warn('cycleCourse failed', e); }
+    }
 
   // Pending randomized start timer (ms)
   let startDelayTimer = null;
@@ -581,6 +919,9 @@ export function initControls({ onStart = () => {}, onCalibrate = () => {}, onNew
     try { resetTimer(); } catch (e) { /* ignore */ }
   // Prevent double-starts: disable the button while waiting for the random delay
   try { startBtn.disabled = true; } catch (e) {}
+  // Ensure mic and audio context are primed (helps avoid iOS routing/hesitation)
+  try { await initMic(); } catch (e) { /* ignore */ }
+  try { await ensureAudioRunning(); } catch (e) { /* ignore */ }
   // Random pre-start between 1 and 3 seconds. We'll show a red countdown on
   // the main clock counting down the random time (rocket-launch style), then
   // play the beep and start the actual stage countdown.
@@ -757,7 +1098,25 @@ export function initControls({ onStart = () => {}, onCalibrate = () => {}, onNew
 
     if (listenBtn) listenBtn.addEventListener('click', async () => { if (listenBtn.textContent === 'Listen') await startListening(); else stopListening(); });
   if (detectBtn) detectBtn.addEventListener('click', async () => { 
-    try { __autoDeviceAllowed = true; await populateDeviceLists(); } catch (e) { console.warn('Detect click failed', e); }
+    try {
+      __autoDeviceAllowed = true;
+      await populateDeviceLists();
+      // After device enumeration attempt to prime audio so Start/Listen are snappy.
+      let primed = false;
+      try {
+        await initMic();
+        await ensureAudioRunning();
+        primed = true;
+      } catch (err) {
+        primed = false;
+        console.warn('Detect: audio priming failed', err);
+      }
+      if (primed) {
+        try { setStatus('Audio primed', 'success'); scheduleClear(5000); } catch (e) {}
+      } else {
+        try { setStatus('Audio priming failed (try Listen)', 'error'); scheduleClear(3000); } catch (e) {}
+      }
+    } catch (e) { console.warn('Detect click failed', e); }
   });
   if (detectBtn) detectBtn.addEventListener('click', () => console.debug('Detect button clicked; user allowed auto-detection')); 
 
@@ -780,6 +1139,7 @@ export function initControls({ onStart = () => {}, onCalibrate = () => {}, onNew
   };
   if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', attach); else attach();
 }
+
 
 export function setUiTotalSecondsUI(v) {
   const el = document.getElementById('totalSecInput');

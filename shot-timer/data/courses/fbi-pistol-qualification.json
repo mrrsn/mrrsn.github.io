@@ -21,6 +21,19 @@
     { "id": 9, "distanceYards": 15, "startPosition": "Ready", "shots": 3, "timeSec": 5,  "notes": "From the low ready, aim and fire 3 shots in 5 seconds." },
     { "id": 10, "distanceYards": 25, "startPosition": "Draw",  "shots": 8, "timeSec": 20, "notes": "Fire 4 shots, drop to kneeling, fire 4 more shots." }
   ],
+  "credits": [
+    {
+      "name": "Federal Bureau of Investigation",
+      "role": "Course by",
+      "year": 2019,
+      "url": "https://www.fbi.gov/"
+    },
+    {
+      "name": "Rob Morrison",
+      "role": "Arranged by",
+      "year": 2025
+    }
+  ],
   "createdBy": "Rob Morrison",
   "createdAt": "2025-09-27"
 }

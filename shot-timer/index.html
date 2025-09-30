@@ -46,7 +46,9 @@
           title="Total countdown time in seconds for the stage. Must be a positive integer."
           min="1"
           value="5"
-          step="1">
+          step="1"
+          inputmode="numeric"
+          pattern="\d*">
       </label>
 
       <label>
@@ -56,7 +58,9 @@
           title="Expected number of shots for the stage. Used for display and scoring."
           min="1"
           value="3"
-          step="1">
+          step="1"
+          inputmode="numeric"
+          pattern="\d*">
       </label>
 
       <label>
@@ -268,5 +272,19 @@
     }());
   </script>
   <script type="module" src="./js/main.js"></script>
+  <footer id="siteFooter" class="site-footer" aria-label="Site footer">
+    <div class="site-footer-inner">
+      <small>© <span id="copyrightYear">2025</span> Rob Morrison — Shot Timer ++</small>
+    </div>
+  </footer>
+  <script>
+    (function () {
+      try {
+        const y = new Date().getFullYear();
+        const el = document.getElementById('copyrightYear');
+        if (el) el.textContent = String(y);
+      } catch (e) { /* ignore */ }
+    }());
+  </script>
 </body>
 </html>

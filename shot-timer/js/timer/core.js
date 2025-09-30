@@ -16,13 +16,15 @@ let acceptShots = false;    // whether incoming shot events should be recorded
 // Track attempt counts per stage so repeated runs can be labeled (2, 2a, 2b...)
 const _attempts = {}; // key -> count (1 = first attempt, 2 = first repeat -> 'a')
 let _currentStageKey = null; // string key for current stage context
+let _currentCourseCredits = null; // optional credits array for the current course
 
 function _makeKey(courseId, stageId) {
   return `${courseId || ''}:${stageId != null ? String(stageId) : ''}`;
 }
 
-export function setStageContext({ courseId = '', courseName = '', stageId = null } = {}) {
+export function setStageContext({ courseId = '', courseName = '', stageId = null, courseCredits = null } = {}) {
   _currentStageKey = _makeKey(courseId, stageId);
+  _currentCourseCredits = Array.isArray(courseCredits) ? courseCredits : null;
   if (!_attempts[_currentStageKey]) _attempts[_currentStageKey] = 1; // first attempt
 }
 
@@ -116,7 +118,9 @@ export function archiveStageShots({ courseId = '', courseName = '', stageId = nu
       participantIdx: participantShots.length,
       courseId,
       courseName,
-      stageId
+      stageId,
+      // include course credits as JSON so exports can include provenance
+      courseCredits: _currentCourseCredits ? JSON.parse(JSON.stringify(_currentCourseCredits)) : null
     }));
   }
   const n = shotLog.length;
@@ -355,14 +359,20 @@ export function calibrateLatency() {
       const rms = (typeof s.rms === 'number') ? s.rms.toFixed(4) : '';
       rows.push([idx, elapsed, delta, raw, cal, rms].join(','));
     }
-    return rows.join('\n');
+      // If the current stage has course credits attached, append a credits block
+      if (_currentCourseCredits && Array.isArray(_currentCourseCredits) && _currentCourseCredits.length > 0) {
+        rows.push('');
+        // single line JSON representation for parsers that can consume it
+        rows.push(['credits', JSON.stringify(_currentCourseCredits).replace(/"/g, '"')].join(','));
+      }
+      return rows.join('\n');
   }
 
   // Export the participant's entire shot set as CSV
   export function exportParticipantCsv() {
     const rows = [];
-    // header includes course/stage metadata and participant index
-    rows.push(['pidx','courseId','courseName','stageId','elapsed_ms','delta_ms','raw_ts','calibrated_ts','rms'].join(','));
+    // header includes course/stage metadata and participant index; include courseCredits
+    rows.push(['pidx','courseId','courseName','stageId','elapsed_ms','delta_ms','raw_ts','calibrated_ts','rms','courseCredits'].join(','));
     for (const s of participantShots) {
       const pidx = s.participantIdx != null ? s.participantIdx : '';
       const courseId = s.courseId || '';
@@ -373,7 +383,8 @@ export function calibrateLatency() {
       const raw = (typeof s.rawTs === 'number') ? s.rawTs.toFixed(3) : '';
       const cal = (typeof s.ts === 'number') ? s.ts.toFixed(3) : '';
       const rms = (typeof s.rms === 'number') ? s.rms.toFixed(4) : '';
-      rows.push([pidx, courseId, JSON.stringify(courseName), stageId, elapsed, delta, raw, cal, rms].join(','));
+      const creditsField = s.courseCredits ? JSON.stringify(s.courseCredits) : '';
+      rows.push([pidx, courseId, JSON.stringify(courseName), stageId, elapsed, delta, raw, cal, rms, JSON.stringify(creditsField)].join(','));
     }
     return rows.join('\n');
   }

@@ -210,6 +210,74 @@ function transientPress(btn, ms = 250) {
   } catch (e) { /* ignore */ }
 }
 
+// Sanitize numeric inputs: prevent non-numeric keystrokes and clean pasted text.
+// allowDecimal: allow one decimal point; allowNegative: allow leading '-'.
+function sanitizeNumericInput(el, { allowDecimal = false, allowNegative = false, maxLength = null } = {}) {
+  if (!el) return;
+  const cleanValue = (v) => {
+    let s = String(v || '');
+    // remove invisible whitespace
+    s = s.replace(/\s+/g, '');
+    if (allowDecimal) {
+      // keep digits, dot and minus
+      s = s.replace(/[^0-9.\-]/g, '');
+      // collapse multiple dots: keep first
+      const parts = s.split('.');
+      if (parts.length > 1) s = parts.shift() + '.' + parts.join('');
+    } else {
+      s = s.replace(/[^0-9\-]/g, '');
+    }
+    if (!allowNegative) s = s.replace(/-/g, '');
+    if (maxLength && s.length > maxLength) s = s.slice(0, maxLength);
+    return s;
+  };
+
+  // Input event: sanitize live
+  el.addEventListener('input', (e) => {
+    try {
+      const cur = el.value;
+      const cleaned = cleanValue(cur);
+      if (cleaned !== cur) {
+        const pos = el.selectionStart || 0;
+        el.value = cleaned;
+        try { el.setSelectionRange(Math.max(0, pos - 1), Math.max(0, pos - 1)); } catch (err) {}
+      }
+    } catch (err) { /* ignore */ }
+  });
+
+  // Paste: sanitize clipboard content and insert
+  el.addEventListener('paste', (ev) => {
+    try {
+      ev.preventDefault();
+      const txt = (ev.clipboardData && ev.clipboardData.getData) ? ev.clipboardData.getData('text') : (window.clipboardData ? window.clipboardData.getData('Text') : '');
+      const cleaned = cleanValue(txt);
+      const start = el.selectionStart || 0;
+      const end = el.selectionEnd || 0;
+      const before = el.value.slice(0, start);
+      const after = el.value.slice(end);
+      el.value = before + cleaned + after;
+      try { el.dispatchEvent(new Event('input', { bubbles: true })); } catch (e) {}
+    } catch (err) { /* ignore paste errors */ }
+  });
+
+  // Keydown: block characters that are not allowed (allows navigation/backspace)
+  el.addEventListener('keydown', (ev) => {
+    try {
+      const k = ev.key;
+      // Allow control keys and navigation
+      if (k.length !== 1) return;
+      const allowRe = allowDecimal ? /[0-9.\-]/ : /[0-9\-]/;
+      if (!allowRe.test(k)) {
+        ev.preventDefault();
+        return;
+      }
+      if (!allowNegative && k === '-') { ev.preventDefault(); return; }
+      if (!allowDecimal && k === '.') { ev.preventDefault(); return; }
+      if (k === '.' && el.value && el.value.includes('.')) { ev.preventDefault(); return; }
+    } catch (err) { /* ignore */ }
+  });
+}
+
 async function requestMicPermission() {
   try {
     const tmp = await navigator.mediaDevices.getUserMedia({ audio: true });
@@ -571,8 +639,40 @@ export function initControls({ onStart = () => {}, onCalibrate = () => {}, onNew
     const shotsCountInput = document.getElementById('shotsCountInput');
     const thresholdInput  = document.getElementById('thresholdInput');
     const debounceInput   = document.getElementById('debounceInput');
-    if (totalSecInput) totalSecInput.addEventListener('change', e => { const n = Number(e.target.value); if (!Number.isFinite(n) || n <= 0) return; setTotalSeconds(Math.floor(n)); });
-    if (shotsCountInput) shotsCountInput.addEventListener('change', e => { const n = parseInt(e.target.value, 10); if (!Number.isFinite(n) || n < 0) return; setExpectedShots(n); });
+  // Sanitize numeric inputs so only appropriate numeric characters are accepted
+  try { sanitizeNumericInput(totalSecInput, { allowDecimal: false, allowNegative: false, maxLength: 6 }); } catch (e) {}
+  try { sanitizeNumericInput(shotsCountInput, { allowDecimal: false, allowNegative: false, maxLength: 4 }); } catch (e) {}
+  try { sanitizeNumericInput(thresholdInput, { allowDecimal: true, allowNegative: false, maxLength: 7 }); } catch (e) {}
+  try { sanitizeNumericInput(debounceInput, { allowDecimal: false, allowNegative: false, maxLength: 6 }); } catch (e) {}
+  // Disallow paste and drag-drop into integer-only fields to force manual entry
+  try { if (totalSecInput) totalSecInput.addEventListener('paste', (ev) => { try { ev.preventDefault(); } catch (e) {} }); } catch (e) {}
+  try { if (totalSecInput) totalSecInput.addEventListener('drop', (ev) => { try { ev.preventDefault(); } catch (e) {} }); } catch (e) {}
+  try { if (shotsCountInput) shotsCountInput.addEventListener('paste', (ev) => { try { ev.preventDefault(); } catch (e) {} }); } catch (e) {}
+  try { if (shotsCountInput) shotsCountInput.addEventListener('drop', (ev) => { try { ev.preventDefault(); } catch (e) {} }); } catch (e) {}
+    if (totalSecInput) totalSecInput.addEventListener('change', e => {
+      try {
+        // Enforce integer-only stage time
+        let raw = String(e.target.value || '');
+        raw = raw.replace(/[^0-9]/g, '');
+        if (raw === '') return;
+        const n = Math.floor(Number(raw));
+        if (!Number.isFinite(n) || n <= 0) return;
+        e.target.value = String(n);
+        setTotalSeconds(n);
+      } catch (err) { /* ignore */ }
+    });
+    if (shotsCountInput) shotsCountInput.addEventListener('change', e => {
+      try {
+        // Enforce integer-only shot counts
+        let raw = String(e.target.value || '');
+        raw = raw.replace(/[^0-9]/g, '');
+        if (raw === '') return;
+        const n = parseInt(raw, 10);
+        if (!Number.isFinite(n) || n < 0) return;
+        e.target.value = String(n);
+        setExpectedShots(n);
+      } catch (err) { /* ignore */ }
+    });
     if (thresholdInput) thresholdInput.addEventListener('input', e => { const v = parseFloat(e.target.value); if (!Number.isFinite(v)) return; const clamped = Math.min(127, Math.max(0, v)); setThreshold(clamped); const valEl = document.getElementById('thresholdValue'); if (valEl) valEl.textContent = String(Math.round(clamped)); });
     if (debounceInput) debounceInput.addEventListener('input', e => { const ms = Number(e.target.value); if (!Number.isFinite(ms) || ms < 0) return; setDebounceMs(Math.round(ms)); const valEl = document.getElementById('debounceValue'); if (valEl) valEl.textContent = String(Math.round(ms)); });
 
@@ -837,23 +937,21 @@ export function initControls({ onStart = () => {}, onCalibrate = () => {}, onNew
               try { cycleCourse(logo); } catch (e) { console.warn('logo dblclick cycle failed', e); }
             });
             // Touch double-tap detection
-            let lastTap = 0;
-            logo.addEventListener('touchend', (ev) => {
-              try {
-                // Prevent default to avoid iOS double-tap zoom when we detect a
-                // quick second tap. Otherwise, allow the tap to proceed.
-                const now = Date.now();
-                const delta = now - lastTap;
-                if (delta > 0 && delta < 350) {
-                  try { ev.preventDefault(); ev.stopPropagation(); } catch (e) {}
-                  try { cycleCourse(logo); } catch (e) { console.warn('logo double-tap cycle failed', e); }
-                  lastTap = 0;
-                } else {
-                  // single tap: store time and allow default behavior (so single-tap
-                  // interactions still work). Do not call preventDefault here.
-                  lastTap = now;
-                }
-              } catch (e) { /* ignore */ }
+            // Use touchstart for more reliable double-tap detection and call
+            // preventDefault early so iOS won't perform the native zoom. Listener
+            // must be non-passive to allow preventDefault.
+            let lastTouchStart = 0;
+            logo.addEventListener('touchstart', (ev) => {
+              const now = Date.now();
+              if (now - lastTouchStart < 350) {
+                // detected double-tap on touch devices
+                if (ev.cancelable) ev.preventDefault();
+                ev.stopPropagation && ev.stopPropagation();
+                cycleCourse(logo);
+                lastTouchStart = 0;
+                return;
+              }
+              lastTouchStart = now;
             }, { passive: false });
           } catch (e) { /* ignore per-element errors */ }
         });

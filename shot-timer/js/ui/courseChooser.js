@@ -17,6 +17,72 @@ function appendMultilineAsParagraphs(el, text) {
   });
 }
 
+// Render course credits (if present) under the course notes area.
+function renderCourseCredits(course, containerEl, opts = {}) {
+  if (!containerEl) return;
+  // remove previous credits block
+  const prev = containerEl.querySelector('.course-credits');
+  if (prev) prev.remove();
+  if (!course || !Array.isArray(course.credits) || course.credits.length === 0) return;
+
+  const wrap = document.createElement('div');
+  wrap.className = 'course-credits';
+  if (opts.mode === 'stage') wrap.classList.add('course-credits-stage');
+  // small heading for accessibility
+  const heading = document.createElement('div');
+  heading.className = 'course-credits-heading';
+  heading.textContent = 'Credits';
+  wrap.appendChild(heading);
+
+  course.credits.forEach((c) => {
+    const item = document.createElement('div');
+    item.className = 'course-credit-item';
+    // Prefer explicit full-text if provided (safe textContent assignment)
+    if (c.text) {
+      item.textContent = c.text;
+    } else {
+      const name = c.name || '';
+      const year = c.year || '';
+
+      // Helper to append a linked name (or plain text if no url)
+      function appendName(parent) {
+        if (c.url && name) {
+          const a = document.createElement('a');
+          a.href = c.url;
+          a.target = '_blank';
+          a.rel = 'noopener noreferrer nofollow';
+          a.textContent = name;
+          a.className = 'course-credit-link';
+          parent.appendChild(a);
+        } else if (name) {
+          parent.appendChild(document.createTextNode(name));
+        }
+      }
+
+      if (c.role) {
+        const roleLower = String(c.role).toLowerCase();
+        if (roleLower.includes('course')) {
+          // "Course by {name}, © {year}"
+          item.appendChild(document.createTextNode(`${c.role} `));
+          appendName(item);
+          if (year) item.appendChild(document.createTextNode(`, © ${year}`));
+        } else {
+          // e.g. "Arranged by {name}, {year}"
+          item.appendChild(document.createTextNode(`${c.role} `));
+          appendName(item);
+          if (year) item.appendChild(document.createTextNode(`, ${year}`));
+        }
+      } else if (name) {
+        appendName(item);
+        if (year) item.appendChild(document.createTextNode(`, © ${year}`));
+      }
+    }
+    wrap.appendChild(item);
+  });
+
+  containerEl.appendChild(wrap);
+}
+
 export async function initCourseChooser() {
   console.debug('initCourseChooser: start');
   // For now we only expect a single course file; load the folder listing would be future work
@@ -47,11 +113,11 @@ export async function initCourseChooser() {
   if (!courseSelect || !stageSelect) return;
 
   // Helper to apply a stage (used by the stage select and Next button)
-  function applyStage(course, stage) {
+    function applyStage(course, stage) {
     setUiTotalSecondsUI(stage.timeSec);
     setUiExpectedShotsUI(stage.shots);
     // Inform timer/core of the current stage context so attempts can be tracked
-    try { setStageContext({ courseId: course.id, courseName: course.name, stageId: stage.id }); } catch (e) {}
+    try { setStageContext({ courseId: course.id, courseName: course.name, stageId: stage.id, courseCredits: course.credits || null }); } catch (e) {}
   // Stage instructions already display current stage; no popup needed.
     // Populate the large instruction area with separate lines:
     // 1) Stage title (Stage N)
@@ -121,6 +187,17 @@ export async function initCourseChooser() {
 
         // Append rules (if any)
         lines.forEach(l => appendMultilineAsParagraphs(detailsEl, l));
+
+        // Insert course-level notes and credits below scoring header but above Stage 1
+        if (course.notes) {
+          // a slightly larger paragraph for the main notes but visually smaller than stage title
+          const noteWrap = document.createElement('div');
+          noteWrap.className = 'course-instructions';
+          appendMultilineAsParagraphs(noteWrap, course.notes);
+          detailsEl.appendChild(noteWrap);
+        }
+        // render credits in 'stage' mode (smaller, but more prominent under scoring)
+        try { renderCourseCredits(course, detailsEl, { mode: 'stage' }); } catch (e) { /* ignore */ }
       } catch (e) { /* ignore */ }
     }
     const nextBtn = document.getElementById('nextStageBtn'); if (nextBtn) nextBtn.textContent = 'Next';
@@ -164,8 +241,10 @@ export async function initCourseChooser() {
       opt.textContent = `Stage ${s.id}: ${s.shots} shots, ${s.timeSec}s`;
       stageSelect.appendChild(opt);
     });
-    // populate course notes
-    if (notesEl) notesEl.textContent = course.notes || '';
+  // populate course notes
+  if (notesEl) notesEl.textContent = course.notes || '';
+  // render credits below notes if available
+  try { renderCourseCredits(course, notesEl); } catch (e) { /* ignore rendering errors */ }
   // default to showing scoring instructions first
   stageSelect.value = 'scoring';
   // ensure controls respond to this programmatic change

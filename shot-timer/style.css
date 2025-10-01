@@ -575,6 +575,15 @@ body :not(h1):not(h2):not(h3):not(h4):not(h5):not(h6) {
   gap: 0.25rem;
 }
 
+/* Compact numeric inputs for setup: limit to roughly three digits to save horizontal space */
+#totalSecInput, #shotsCountInput {
+  width: 6ch; /* wider: roughly fits up to 6 digits visually (user requested double) */
+  min-width: 6ch;
+  max-width: 8ch;
+  text-align: right; /* align digits for readability */
+}
+
+
 #courseChooser label { margin: 0; }
 
 /* New row layout: course dropdown + notes aligned horizontally */

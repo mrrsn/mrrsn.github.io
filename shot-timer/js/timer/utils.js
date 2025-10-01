@@ -1,7 +1,1 @@
-// js/timer/utils.js
-export function formatTime(ms) {
-  const minutes = Math.floor(ms / 60000);
-  const seconds = Math.floor((ms % 60000) / 1000);
-  const tenths  = Math.floor((ms % 1000) / 100);
-  return `${String(minutes).padStart(2, '0')}:${String(seconds).padStart(2, '0')}.${tenths}`;
-}
+export function formatTime(t){const r=Math.floor(t/6e4),o=Math.floor(t%6e4/1e3),a=Math.floor(t%1e3/100);return`${String(r).padStart(2,"0")}:${String(o).padStart(2,"0")}.${a}`}

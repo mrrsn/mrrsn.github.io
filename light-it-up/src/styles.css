@@ -1,6 +1,7 @@
 :root{--bg:#0b1020;--panel:#0f1724;--text:#e6eef6}
 *{box-sizing:border-box}
 body{margin:0;font-family:Inter,Segoe UI,Helvetica,Arial;background:linear-gradient(180deg,var(--bg),#071026);color:var(--text);display:flex;align-items:center;justify-content:center;height:100vh}
+html,body{touch-action:manipulation;-webkit-tap-highlight-color: transparent}
 .game{width:760px;max-width:95vw;padding:24px;background:rgba(255,255,255,0.03);border-radius:12px;box-shadow:0 6px 30px rgba(0,0,0,0.6)}
 .leds{position:relative;width:360px;height:360px;margin:18px auto}
 .led{position:absolute;left:50%;top:50%;width:48px;height:48px;border-radius:50%;background:#001122;display:flex;align-items:center;justify-content:center;color:#0a0a0a;font-weight:700;box-shadow:0 4px 12px rgba(0,0,0,0.6);transform:translate(-50%,-50%)}
@@ -14,3 +15,6 @@ body{margin:0;font-family:Inter,Segoe UI,Helvetica,Arial;background:linear-gradi
 .scoreline{display:flex;justify-content:space-between;align-items:center}
 .instructions{margin:6px 0 8px;color:#cdd7e3;font-size:14px;text-align:center;transition:opacity .25s ease}
 .instructions.is-hidden{opacity:0}
+/* Keep status area from collapsing when text is cleared */
+#status{min-height:1.25em;display:block;transition:opacity .2s ease}
+#status.is-hidden{opacity:0;visibility:hidden}

@@ -14,7 +14,7 @@ html,body{touch-action:manipulation;-webkit-tap-highlight-color: transparent}
 .hidden{display:none}
 .scoreline{display:flex;justify-content:space-between;align-items:center}
 .scoreline{position:relative}
-.mute-container{position:absolute;left:50%;transform:translateX(-50%)}
+.mute-container{position:static}
 .mute-btn{font-size:12px;padding:6px 10px;border-radius:999px;background:#1f2a44;border:1px solid rgba(255,255,255,0.12);color:#fff;cursor:pointer}
 .instructions{margin:6px 0 8px;color:#cdd7e3;font-size:14px;text-align:center;transition:opacity .25s ease}
 .instructions.is-hidden{opacity:0}

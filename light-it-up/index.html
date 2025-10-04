@@ -3,8 +3,12 @@
   <head>
     <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1, minimum-scale=1, maximum-scale=1, user-scalable=no" />
+  <meta name="apple-mobile-web-app-capable" content="yes" />
+  <meta name="apple-mobile-web-app-title" content="Light It Up" />
   <title>Light It Up</title>
-  <link rel="icon" type="image/svg+xml" href="data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'><rect width='64' height='64' fill='%230b1020'/><circle cx='32' cy='32' r='22' fill='%2300ff00'/></svg>">
+  <!-- Use a single static PNG icon (iOS-friendly). Browsers will downscale as needed. -->
+  <link rel="icon" type="image/png" sizes="180x180" href="src/icon-180.png" />
+  <link rel="apple-touch-icon" sizes="180x180" href="src/icon-180.png" />
     <link rel="stylesheet" href="src/styles.css" />
   </head>
   <body>

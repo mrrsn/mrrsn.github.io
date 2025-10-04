@@ -4,7 +4,8 @@ body{margin:0;font-family:Inter,Segoe UI,Helvetica,Arial;background:linear-gradi
 html,body{touch-action:manipulation;-webkit-tap-highlight-color: transparent}
 .game{width:760px;max-width:95vw;padding:24px;background:rgba(255,255,255,0.03);border-radius:12px;box-shadow:0 6px 30px rgba(0,0,0,0.6)}
 .leds{position:relative;width:360px;height:360px;margin:18px auto}
-.led{position:absolute;left:50%;top:50%;width:48px;height:48px;border-radius:50%;background:#001122;display:flex;align-items:center;justify-content:center;color:#0a0a0a;font-weight:700;box-shadow:0 4px 12px rgba(0,0,0,0.6);transform:translate(-50%,-50%)}
+.led{position:absolute;left:50%;top:50%;width:48px;height:48px;border-radius:50%;background:#001122;display:flex;align-items:center;justify-content:center;color:#eaf2ff;font-weight:800;font-size:18px;line-height:1;box-shadow:0 4px 12px rgba(0,0,0,0.6);transform:translate(-50%,-50%)}
+.led.a11y-active{box-shadow:0 0 0 8px #ffffff, 0 4px 12px rgba(0,0,0,0.6); z-index:1}
 .controls{display:flex;gap:12px;align-items:center;flex-direction:column;margin-top:16px}
 .big{font-size:18px;padding:10px 14px;border-radius:8px;background:#666;border:1px solid rgba(255,255,255,0.08);cursor:pointer;color:#fff}
 .center{display:flex;align-items:center;justify-content:center}
@@ -14,7 +15,7 @@ html,body{touch-action:manipulation;-webkit-tap-highlight-color: transparent}
 .hidden{display:none}
 .scoreline{display:flex;justify-content:space-between;align-items:center}
 .scoreline{position:relative}
-.mute-container{position:static}
+.mute-container{position:static; display:flex; gap:8px; align-items:center}
 .mute-btn{font-size:12px;padding:6px 10px;border-radius:999px;background:#1f2a44;border:1px solid rgba(255,255,255,0.12);color:#fff;cursor:pointer}
 .instructions{margin:6px 0 8px;color:#cdd7e3;font-size:14px;text-align:center;transition:opacity .25s ease}
 .instructions.is-hidden{opacity:0}

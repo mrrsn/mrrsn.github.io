@@ -1,0 +1,14 @@
+:root{--bg:#0b1020;--panel:#0f1724;--text:#e6eef6}
+*{box-sizing:border-box}
+body{margin:0;font-family:Inter,Segoe UI,Helvetica,Arial;background:linear-gradient(180deg,var(--bg),#071026);color:var(--text);display:flex;align-items:center;justify-content:center;height:100vh}
+.game{width:760px;max-width:95vw;padding:24px;background:rgba(255,255,255,0.03);border-radius:12px;box-shadow:0 6px 30px rgba(0,0,0,0.6)}
+.leds{position:relative;width:360px;height:360px;margin:18px auto}
+.led{position:absolute;left:50%;top:50%;width:48px;height:48px;border-radius:50%;background:#001122;display:flex;align-items:center;justify-content:center;color:#0a0a0a;font-weight:700;box-shadow:0 4px 12px rgba(0,0,0,0.6);transform:translate(-50%,-50%)}
+.controls{display:flex;gap:12px;align-items:center;flex-direction:column;margin-top:16px}
+.big{font-size:18px;padding:10px 14px;border-radius:8px;background:#666;border:1px solid rgba(255,255,255,0.08);cursor:pointer;color:#fff}
+.center{display:flex;align-items:center;justify-content:center}
+.row{display:flex;gap:8px;align-items:center}
+.palette{display:flex;gap:6px;margin-top:8px}
+.palette .sw{width:28px;height:20px;border-radius:4px}
+.hidden{display:none}
+.scoreline{display:flex;justify-content:space-between;align-items:center}

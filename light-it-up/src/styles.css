@@ -12,3 +12,5 @@ body{margin:0;font-family:Inter,Segoe UI,Helvetica,Arial;background:linear-gradi
 .palette .sw{width:28px;height:20px;border-radius:4px}
 .hidden{display:none}
 .scoreline{display:flex;justify-content:space-between;align-items:center}
+.instructions{margin:6px 0 8px;color:#cdd7e3;font-size:14px;text-align:center;transition:opacity .25s ease}
+.instructions.is-hidden{opacity:0}

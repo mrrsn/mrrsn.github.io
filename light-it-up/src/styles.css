@@ -2,6 +2,14 @@
 *{box-sizing:border-box}
 body{margin:0;font-family:Inter,Segoe UI,Helvetica,Arial;background:linear-gradient(180deg,var(--bg),#071026);color:var(--text);display:flex;align-items:center;justify-content:center;height:100vh}
 html,body{touch-action:manipulation;-webkit-tap-highlight-color: transparent}
+/* Prevent text selection/highlighting and touch callouts on mobile */
+html, body, .game, .leds, .led, .instructions, .mute-btn, #status {
+	-webkit-user-select: none; /* Safari */
+	-moz-user-select: none;    /* Firefox */
+	-ms-user-select: none;     /* IE10+/Edge Legacy */
+	user-select: none;         /* Standard */
+	-webkit-touch-callout: none; /* iOS long-press menu */
+}
 .game{width:760px;max-width:95vw;padding:24px;background:rgba(255,255,255,0.03);border-radius:12px;box-shadow:0 6px 30px rgba(0,0,0,0.6)}
 .leds{position:relative;width:360px;height:360px;margin:18px auto}
 .led{position:absolute;left:50%;top:50%;width:48px;height:48px;border-radius:50%;background:#001122;display:flex;align-items:center;justify-content:center;color:#eaf2ff;font-weight:800;font-size:18px;line-height:1;box-shadow:0 4px 12px rgba(0,0,0,0.6);transform:translate(-50%,-50%)}

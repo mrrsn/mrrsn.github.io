@@ -33,3 +33,12 @@ html, body, .game, .leds, .led, .instructions, .mute-btn, #status {
 /* Keep status area from collapsing when text is cleared */
 #status{min-height:1.25em;display:block;transition:opacity .2s ease}
 #status.is-hidden{opacity:0;visibility:hidden}
+
+/* Center start/restart button inside the arc */
+.center-button{position:absolute;left:50%;top:50%;transform:translate(-50%,-50%);} /* exact center of the LED circle */
+.play-btn{width:96px;height:96px;border-radius:50%;display:flex;align-items:center;justify-content:center; transform-origin:center center;
+	background:radial-gradient(circle at 30% 30%, #2a3a60, #18243e);
+	border:1px solid rgba(255,255,255,0.18); color:#eaf2ff; font-weight:600; cursor:pointer;
+	box-shadow:0 6px 20px rgba(0,0,0,0.5), inset 0 2px 6px rgba(255,255,255,0.1);
+}
+.play-btn:active{transform:scale(0.98)}

@@ -1,6 +1,6 @@
 :root{--bg:#0b1020;--panel:#0f1724;--text:#e6eef6}
 *{box-sizing:border-box}
-body{margin:0;font-family:Inter,Segoe UI,Helvetica,Arial;background:linear-gradient(180deg,var(--bg),#071026);color:var(--text);display:flex;align-items:center;justify-content:center;height:100vh}
+body{margin:0;font-family:Inter,Segoe UI,Helvetica,Arial;background:linear-gradient(180deg,var(--bg),#071026);color:var(--text);display:flex;align-items:center;justify-content:center;height:100vh;height:100dvh}
 /* Center all app children horizontally */
 #app{display:flex;flex-direction:column;align-items:center}
 html,body{touch-action:manipulation;-webkit-tap-highlight-color: transparent}

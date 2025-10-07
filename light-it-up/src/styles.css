@@ -1,6 +1,8 @@
 :root{--bg:#0b1020;--panel:#0f1724;--text:#e6eef6}
 *{box-sizing:border-box}
 body{margin:0;font-family:Inter,Segoe UI,Helvetica,Arial;background:linear-gradient(180deg,var(--bg),#071026);color:var(--text);display:flex;align-items:center;justify-content:center;height:100vh}
+/* Center all app children horizontally */
+#app{display:flex;flex-direction:column;align-items:center}
 html,body{touch-action:manipulation;-webkit-tap-highlight-color: transparent}
 /* Prevent text selection/highlighting and touch callouts on mobile */
 html, body, .game, .leds, .led, .instructions, .mute-btn, #status {
@@ -10,6 +12,7 @@ html, body, .game, .leds, .led, .instructions, .mute-btn, #status {
 	user-select: none;         /* Standard */
 	-webkit-touch-callout: none; /* iOS long-press menu */
 }
+.title{font-family:"Comfortaa",system-ui,-apple-system,"Segoe UI",Arial,sans-serif;font-size:48px;font-weight:800;letter-spacing:0.5px;margin-bottom:10px;text-align:center;color:rgb(0,255,0);text-shadow:0 6px 22px rgba(0,0,0,0.55)}
 .game{width:760px;max-width:95vw;padding:24px;background:rgba(255,255,255,0.03);border-radius:12px;box-shadow:0 6px 30px rgba(0,0,0,0.6)}
 .leds{position:relative;width:360px;height:360px;margin:18px auto}
 .led{position:absolute;left:50%;top:50%;width:48px;height:48px;border-radius:50%;background:#001122;display:flex;align-items:center;justify-content:center;color:#eaf2ff;font-weight:800;font-size:18px;line-height:1;box-shadow:0 4px 12px rgba(0,0,0,0.6);transform:translate(-50%,-50%)}
@@ -17,8 +20,8 @@ html, body, .game, .leds, .led, .instructions, .mute-btn, #status {
 .controls{display:flex;gap:12px;align-items:center;flex-direction:column;margin-top:16px}
 .center{display:flex;align-items:center;justify-content:center}
 .row{display:flex;gap:8px;align-items:center}
-.scoreline{display:flex;justify-content:space-between;align-items:center;position:relative}
-.mute-container{position:static; display:flex; gap:8px; align-items:center}
+.scoreline{display:flex;justify-content:center;align-items:center;position:relative}
+.mute-container{position:static; display:flex; gap:8px; align-items:center; justify-content:center; flex-wrap:wrap}
 .mute-btn{font-size:12px;padding:6px 10px;border-radius:999px;background:#1f2a44;border:1px solid rgba(255,255,255,0.12);color:#fff;cursor:pointer}
 .instructions{margin:6px 0 8px;color:#cdd7e3;font-size:14px;text-align:center;transition:opacity .25s ease}
 .instructions.is-hidden{opacity:0}
@@ -31,9 +34,27 @@ html, body, .game, .leds, .led, .instructions, .mute-btn, #status {
 
 /* Center start/restart button inside the arc */
 .center-button{position:absolute;left:50%;top:50%;transform:translate(-50%,-50%); z-index:5; pointer-events:auto;} /* exact center of the LED circle */
-.play-btn{position:relative; z-index:6; width:96px;height:96px;border-radius:50%;display:flex;align-items:center;justify-content:center; transform-origin:center center;
+.play-btn{position:relative; z-index:6; width:96px;height:96px;border-radius:50%;display:flex;flex-direction:column;align-items:center;justify-content:center; transform-origin:center center;
 	background:radial-gradient(circle at 30% 30%, #2a3a60, #18243e);
 	border:1px solid rgba(255,255,255,0.18); color:#eaf2ff; font-weight:600; cursor:pointer;
 	box-shadow:0 6px 20px rgba(0,0,0,0.5), inset 0 2px 6px rgba(255,255,255,0.1);
 }
 .play-btn:active{transform:scale(0.98)}
+
+/* Restart button time layout */
+.play-btn .btn-time{font-size:16px;font-weight:700;line-height:1.1;margin-bottom:4px}
+.play-btn .btn-label{font-size:13px;opacity:0.95}
+
+/* Footer */
+.footer{margin-top:8px;font-size:12px;color:#9fb1c5;text-align:center;opacity:0.9}
+
+/* Mobile tweaks for consistent centering */
+@media (max-width: 480px){
+	.game{width:100%;max-width:95vw;margin:0 auto}
+	.scoreline{justify-content:center}
+	.mute-container{justify-content:center}
+	.leds{margin:12px auto}
+}
+
+/* Live timer overlay in center during gameplay */
+.timer-overlay{z-index:6; pointer-events:none; color:#eaf2ff; font-weight:700; font-size:22px; text-shadow:0 2px 6px rgba(0,0,0,0.5); display:none}

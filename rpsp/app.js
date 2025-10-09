@@ -412,6 +412,28 @@ function showGameScreen() {
         btn.classList.remove('selected');
     });
     document.getElementById('yourChoice').textContent = '';
+
+        // Respect current player's ready state: if already chose, show waiting; otherwise show choice UI
+        const you = gameState && currentPlayer ? gameState.players?.[currentPlayer] : null;
+        const choiceSection = document.getElementById('choiceSection');
+        const waiting = document.getElementById('waitingForPlayers');
+        const results = document.getElementById('resultsSection');
+        const winner = document.getElementById('winnerSection');
+
+        if (results) results.style.display = 'none';
+        if (winner) winner.style.display = 'none';
+
+        if (you && you.ready) {
+            if (choiceSection) choiceSection.style.display = 'none';
+            if (waiting) waiting.style.display = 'block';
+        } else {
+            if (choiceSection) choiceSection.style.display = 'block';
+            if (waiting) waiting.style.display = 'none';
+            // Clear prior visual selection when showing choices
+            document.querySelectorAll('.choice-btn').forEach(btn => btn.classList.remove('selected'));
+            const yourChoice = document.getElementById('yourChoice');
+            if (yourChoice) yourChoice.textContent = '';
+        }
 }
 
 function updateGameDisplay() {

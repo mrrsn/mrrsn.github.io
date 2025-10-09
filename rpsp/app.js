@@ -200,60 +200,63 @@ async function createRoom() {
     const playerCountBtn = document.querySelector('.player-count-btn.active');
     const playerCount = playerCountBtn ? parseInt(playerCountBtn.dataset.count) : 2;
     const pointsToWin = parseInt(document.getElementById('pointsToWin').value);
-    
+
     if (!name) {
         showError('Please enter your name');
         return;
     }
-    
-    if (pointsToWin < 1 || pointsToWin > 20) {
+
+    if (Number.isNaN(pointsToWin) || pointsToWin < 1 || pointsToWin > 20) {
         showError('Points to win must be between 1 and 20');
         return;
     }
-    
-    // Generate a room ID and avoid collisions
-    let roomId = generateRoomId();
+
+    const playerId = Date.now().toString();
     try {
-        for (let attempts = 0; attempts < 50; attempts++) {
-            const exists = await get(child(ref(database), `rooms/${roomId}`));
-            if (!exists.exists()) break;
+        // Atomically claim a unique room code and create the room
+        let claimed = false;
+        let roomId = '';
+        for (let attempts = 0; attempts < 50 && !claimed; attempts++) {
             roomId = generateRoomId();
-            if (attempts === 49) {
-                showError('Unable to generate a room code. Please try again.');
-                return;
+            const roomRef = ref(database, `rooms/${roomId}`);
+            const roomData = {
+                id: roomId,
+                maxPlayers: playerCount,
+                pointsToWin: pointsToWin,
+                status: 'waiting',
+                round: 1,
+                players: {
+                    [playerId]: {
+                        name: name,
+                        score: 0,
+                        ready: false,
+                        choice: null
+                    }
+                },
+                choices: {},
+                results: null,
+                createdAt: Date.now(),
+                // Use client time inside transaction; heartbeat will update with server time shortly after
+                lastActivity: Date.now()
+            };
+            const result = await runTransaction(roomRef, (current) => {
+                // If already exists, abort this code; else create it
+                if (current) return current;
+                return roomData;
+            });
+            if (result.committed) {
+                claimed = true;
+                // bump lastActivity to server time outside transaction
+                await update(roomRef, { lastActivity: serverTimestamp() }).catch(() => {});
+                currentRoom = roomId;
+                currentPlayer = playerId;
+                joinWaitingRoom(roomId, playerId);
+                startRoomHeartbeat(roomId);
             }
         }
-    } catch (_) {
-        // If check fails, proceed with current roomId
-    }
-    const playerId = Date.now().toString();
-    
-    const roomData = {
-        id: roomId,
-        maxPlayers: playerCount,
-        pointsToWin: pointsToWin,
-        status: 'waiting',
-        round: 1,
-        players: {
-            [playerId]: {
-                name: name,
-                score: 0,
-                ready: false,
-                choice: null
-            }
-        },
-        choices: {},
-        results: null,
-        createdAt: Date.now(),
-        lastActivity: serverTimestamp()
-    };
-    
-    try {
-        await set(ref(database, `rooms/${roomId}`), roomData);
-        currentRoom = roomId;
-        currentPlayer = playerId;
-        joinWaitingRoom(roomId, playerId);
-        startRoomHeartbeat(roomId);
+        if (!claimed) {
+            showError('Unable to generate a room code right now. Please try again.');
+        }
     } catch (error) {
         console.error('Error creating room:', error);
         showError('Failed to create room: ' + error.message);
@@ -265,45 +268,58 @@ async function joinRoom() {
         const ok = await initializeFirebase();
         if (!ok) return;
     }
-    const roomId = getEnteredRpsCode();
     const name = document.getElementById('playerName').value.trim();
-    
-    if (!roomId || roomId.length !== ROOM_CODE_LEN || !name) {
-        showError(`Please enter a ${ROOM_CODE_LEN}-symbol room code and your name`);
+    const roomId = getEnteredRpsCode();
+    if (!roomId || roomId.length !== ROOM_CODE_LEN) {
+        showError(`Enter a ${ROOM_CODE_LEN}-symbol room code`);
         return;
     }
-    
+    if (!name) {
+        showError('Please enter your name');
+        return;
+    }
+
+    const playerId = Date.now().toString();
+    const roomRef = ref(database, `rooms/${roomId}`);
     try {
-        const roomSnapshot = await get(child(ref(database), `rooms/${roomId}`));
-        
-        if (!roomSnapshot.exists()) {
-            showError('Room not found');
-            return;
-        }
-        
-        const roomData = roomSnapshot.val();
-        const playerCount = Object.keys(roomData.players).length;
-        
-        if (playerCount >= roomData.maxPlayers) {
-            showError('Room is full');
-            return;
-        }
-        
-        if (roomData.status !== 'waiting') {
-            showError('Game already in progress');
-            return;
-        }
-        
-        const playerId = Date.now().toString();
-        await update(ref(database, `rooms/${roomId}/players/${playerId}`), {
-            name: name,
-            score: 0,
-            ready: false,
-            choice: null
+        // Atomically add the player if the room exists, is waiting, and not full
+        const result = await runTransaction(roomRef, (room) => {
+            if (!room) return room; // room doesn't exist
+            const players = room.players || {};
+            const playerCount = Object.keys(players).length;
+            if (room.status !== 'waiting') return room; // already started or finished
+            if (playerCount >= room.maxPlayers) return room; // full
+            // add player
+            room.players = players;
+            room.players[playerId] = {
+                name: name,
+                score: 0,
+                ready: false,
+                choice: null
+            };
+            room.lastActivity = Date.now();
+            return room;
         });
-        // bump room activity
-        await update(ref(database, `rooms/${roomId}`), { lastActivity: serverTimestamp() });
-        
+
+        const committed = result.committed;
+        const finalRoom = result.snapshot && result.snapshot.val();
+        if (!committed || !finalRoom || !finalRoom.players || !finalRoom.players[playerId]) {
+            // Determine a friendly error
+            if (!finalRoom) {
+                showError('Room not found');
+            } else if (finalRoom.status !== 'waiting') {
+                showError('Game already started');
+            } else if (Object.keys(finalRoom.players || {}).length >= finalRoom.maxPlayers) {
+                showError('Room is full');
+            } else {
+                showError('Failed to join room. Please try again.');
+            }
+            return;
+        }
+
+        // bump lastActivity to server time outside transaction
+        await update(roomRef, { lastActivity: serverTimestamp() }).catch(() => {});
+
         currentRoom = roomId;
         currentPlayer = playerId;
         joinWaitingRoom(roomId, playerId);

@@ -486,6 +486,15 @@ h3 {
     box-shadow: 0 0 0 0 rgba(220, 53, 69, 0.7);
 }
 
+/* red X is hidden by default, shown when offline in compact mode */
+.conn-x { display: none; color: #dc3545; font-size: 12px; }
+.conn-status--offline.compact .conn-dot { display: none; }
+.conn-status--offline.compact .conn-x { display: inline-block; }
+
+/* Compact mode: hide text, keep only icon */
+.conn-status.compact .conn-text { display: none; }
+.conn-status.compact { gap: 6px; padding: 6px 8px; }
+
 .conn-status--connecting .conn-dot {
     background: #ffc107;
     box-shadow: 0 0 0 0 rgba(255, 193, 7, 0.7);

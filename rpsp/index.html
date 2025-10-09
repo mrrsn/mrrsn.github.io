@@ -9,7 +9,8 @@
 <body>
     <div class="container">
         <div id="connectionStatus" class="conn-status conn-status--connecting" title="Firebase connection status">
-            <span class="conn-dot"></span>
+            <span class="conn-dot" aria-hidden="true"></span>
+            <span class="conn-x" aria-hidden="true">✖</span>
             <span class="conn-text">Connecting…</span>
         </div>
         <h1>Rock Paper Scissors Plus</h1>
@@ -38,7 +39,7 @@
             </div>
             <div class="form-group">
                 <label for="pointsToWin">Points to Win:</label>
-                <input type="number" id="pointsToWin" min="1" max="20" value="5">
+                <input type="number" id="pointsToWin" min="1" max="20" value="3">
             </div>
             <button id="createBtn" class="btn btn-primary">Create</button>
             <button class="btn btn-secondary back-btn">Back</button>
@@ -88,7 +89,6 @@
             
             <div id="choiceSection" class="choice-section">
                 <div class="choice-row">
-                    <span class="section-caption" aria-hidden="true">Choose</span>
                     <div class="choices">
                     <button class="choice-btn" data-choice="rock">
                         <span class="choice-icon" aria-hidden="true">✊</span>

@@ -1,6 +1,6 @@
 import { firebaseConfig } from './firebase-config.js';
 import { initializeApp } from 'https://www.gstatic.com/firebasejs/10.12.4/firebase-app.js';
-import { getDatabase, ref, set, onValue, update, remove, push, get, child } from 'https://www.gstatic.com/firebasejs/10.12.4/firebase-database.js';
+import { getDatabase, ref, set, onValue, update, remove, push, get, child, serverTimestamp, query, orderByChild, endAt, limitToFirst, runTransaction } from 'https://www.gstatic.com/firebasejs/10.12.4/firebase-database.js';
 
 // Initialize Firebase
 let app, database;
@@ -64,6 +64,8 @@ let currentRoom = null;
 let currentPlayer = null;
 let gameState = null;
 let roomListener = null;
+let heartbeatInterval = null;
+let cleanupTimeoutId = null;
 
 // DOM elements
 const screens = {
@@ -224,7 +226,8 @@ async function createRoom() {
         },
         choices: {},
         results: null,
-        createdAt: Date.now()
+        createdAt: Date.now(),
+        lastActivity: serverTimestamp()
     };
     
     try {
@@ -232,6 +235,7 @@ async function createRoom() {
         currentRoom = roomId;
         currentPlayer = playerId;
         joinWaitingRoom(roomId, playerId);
+        startRoomHeartbeat(roomId);
     } catch (error) {
         console.error('Error creating room:', error);
         showError('Failed to create room: ' + error.message);
@@ -279,10 +283,13 @@ async function joinRoom() {
             ready: false,
             choice: null
         });
+        // bump room activity
+        await update(ref(database, `rooms/${roomId}`), { lastActivity: serverTimestamp() });
         
         currentRoom = roomId;
         currentPlayer = playerId;
         joinWaitingRoom(roomId, playerId);
+        startRoomHeartbeat(roomId);
     } catch (error) {
         console.error('Error joining room:', error);
         showError('Failed to join room: ' + error.message);
@@ -318,6 +325,18 @@ function joinWaitingRoom(roomId, playerId) {
             playersList.appendChild(div);
         });
         
+        // If game finished, show winner for all players
+        if (room.status === 'finished' && room.winner) {
+            const winnerId = room.winner.id;
+            const winnerPlayer = room.players[winnerId];
+            if (winnerPlayer) {
+                // Ensure we're on the game screen
+                showScreen('game');
+                showWinner(winnerId, winnerPlayer);
+                return;
+            }
+        }
+
         // Start game when room is full
         if (playerCount === room.maxPlayers && room.status === 'waiting') {
             setTimeout(() => startGame(roomId), 1000);
@@ -337,7 +356,8 @@ function joinWaitingRoom(roomId, playerId) {
 async function startGame(roomId) {
     try {
         await update(ref(database, `rooms/${roomId}`), {
-            status: 'playing'
+            status: 'playing',
+            lastActivity: serverTimestamp()
         });
     } catch (error) {
         console.error('Error starting game:', error);
@@ -409,6 +429,8 @@ document.querySelectorAll('.choice-btn').forEach(btn => {
                 choice: choice,
                 ready: true
             });
+            // mark activity
+            await update(ref(database, `rooms/${currentRoom}`), { lastActivity: serverTimestamp() });
             
             // Hide choice section and show waiting
             document.getElementById('choiceSection').style.display = 'none';
@@ -543,7 +565,8 @@ async function processRoundResult(result, choices) {
             updates[`players/${playerId}/choice`] = null;
         });
         
-        updates['results'] = resultData;
+    updates['results'] = resultData;
+    updates['lastActivity'] = serverTimestamp();
         
         await update(ref(database, `rooms/${currentRoom}`), updates);
         
@@ -617,25 +640,7 @@ function displayRoundResults(resultData) {
     setTimeout(async () => {
         if (!currentRoom || !gameState) return;
         try {
-            // If there's a winner, mark game finished for everyone and show winner screen
-            const winnerEntry = Object.entries(gameState.players).find(([id, player]) => player.score >= gameState.pointsToWin);
-            if (winnerEntry) {
-                const [winnerId] = winnerEntry;
-                await update(ref(database, `rooms/${currentRoom}`), {
-                    status: 'finished',
-                    winner: { id: winnerId }
-                });
-                const winnerPlayer = gameState.players[winnerId];
-                showWinner(winnerId, winnerPlayer);
-                return;
-            }
-
-            // If there's a tiebreaker pending, start it
-            if (gameState.tiebreaker) {
-                await resolveTiebreaker();
-            } else {
-                await nextRound();
-            }
+            await advanceRoundTransaction(currentRoom);
         } catch (e) {
             console.error('Auto-progress failed:', e);
         }
@@ -649,7 +654,8 @@ async function resolveTiebreaker() {
         await update(ref(database, `rooms/${currentRoom}`), {
             round: gameState.round + 1,
             results: null,
-            tiebreakerActive: true
+            tiebreakerActive: true,
+            lastActivity: serverTimestamp()
         });
         
         showGameScreen();
@@ -664,7 +670,8 @@ async function nextRound() {
         await update(ref(database, `rooms/${currentRoom}`), {
             round: gameState.round + 1,
             results: null,
-            tiebreaker: null
+            tiebreaker: null,
+            lastActivity: serverTimestamp()
         });
         
         showGameScreen();
@@ -703,7 +710,8 @@ function showWinner(playerId, player) {
 
 async function scheduleRoomCleanup() {
     // Wait 5 minutes before cleaning up the room
-    setTimeout(async () => {
+    if (cleanupTimeoutId) clearTimeout(cleanupTimeoutId);
+    cleanupTimeoutId = setTimeout(async () => {
         if (currentRoom) {
             try {
                 await cleanupRoom(currentRoom);
@@ -730,18 +738,29 @@ document.getElementById('playAgainBtn').addEventListener('click', async () => {
     if (!currentRoom) return;
     
     try {
-        // Reset game state
-        const updates = {};
-        updates['round'] = 1;
-        updates['results'] = null;
-        updates['tiebreaker'] = null;
-        
+        // Cancel any pending cleanup
+        if (cleanupTimeoutId) {
+            clearTimeout(cleanupTimeoutId);
+            cleanupTimeoutId = null;
+        }
+
+        // Reset game state in-place and restart
+        const updates = {
+            round: 1,
+            results: null,
+            tiebreaker: null,
+            tiebreakerActive: false,
+            status: 'playing',
+            winner: null,
+            lastActivity: serverTimestamp()
+        };
+
         Object.keys(gameState.players).forEach(playerId => {
             updates[`players/${playerId}/score`] = 0;
             updates[`players/${playerId}/ready`] = false;
             updates[`players/${playerId}/choice`] = null;
         });
-        
+
         await update(ref(database, `rooms/${currentRoom}`), updates);
         showGameScreen();
     } catch (error) {
@@ -788,6 +807,7 @@ async function backToMenu() {
     currentRoom = null;
     currentPlayer = null;
     gameState = null;
+    stopRoomHeartbeat();
     
     showScreen('setup');
 }
@@ -853,6 +873,8 @@ function setupRoomListener() {
     if (!initialized) {
         console.warn('Firebase not initialized. Please configure firebase-config.js');
     }
+    // Start periodic cleanup sweeper to remove idle rooms
+    startCleanupSweeper();
     // Auto-minimize the connection badge after a short delay on mobile to free space
     const conn = document.getElementById('connectionStatus');
     if (conn) {
@@ -879,4 +901,96 @@ function setConnectionStatus(state, text) {
     el.classList.add(map[state] || 'conn-status--connecting');
     const textEl = el.querySelector('.conn-text');
     if (textEl) textEl.textContent = text;
+
+    // Compact/icon-only behavior
+    if (state === 'online') {
+        // briefly show text, then switch to compact dot-only
+        el.classList.remove('compact');
+        setTimeout(() => {
+            // if still online, compactify
+            if (el.classList.contains('conn-status--online')) {
+                el.classList.add('compact');
+            }
+        }, 2500);
+    } else if (state === 'offline') {
+        // show compact with red X instead of dot
+        el.classList.add('compact');
+    } else {
+        el.classList.remove('compact');
+    }
+}
+
+// Advance round atomically so only one client progresses the game
+async function advanceRoundTransaction(roomId) {
+    const roomRef = ref(database, `rooms/${roomId}`);
+    await runTransaction(roomRef, (room) => {
+        if (!room) return room;
+        // If results already cleared or game not playing, do nothing
+        if (room.status !== 'playing' || !room.results) return room;
+
+        // Determine if someone already won
+        const players = room.players || {};
+        const winnerEntry = Object.entries(players).find(([, p]) => (p && typeof p.score === 'number') && p.score >= room.pointsToWin);
+        if (winnerEntry) {
+            const [winnerId] = winnerEntry;
+            room.status = 'finished';
+            room.winner = { id: winnerId };
+            room.results = null;
+            room.lastActivity = Date.now();
+            return room;
+        }
+
+        // Start next round; if tiebreaker queued, mark active
+        room.round = (room.round || 1) + 1;
+        room.results = null;
+        if (room.tiebreaker) {
+            room.tiebreakerActive = true;
+        } else {
+            room.tiebreaker = null;
+            room.tiebreakerActive = false;
+        }
+        room.lastActivity = Date.now();
+        return room;
+    });
+}
+
+// --- Idle cleanup & heartbeat ---
+function startRoomHeartbeat(roomId) {
+    stopRoomHeartbeat();
+    if (!database || !roomId) return;
+    // immediate bump
+    update(ref(database, `rooms/${roomId}`), { lastActivity: serverTimestamp() }).catch(() => {});
+    heartbeatInterval = setInterval(() => {
+        update(ref(database, `rooms/${roomId}`), { lastActivity: serverTimestamp() }).catch(() => {});
+    }, 120000); // every 2 minutes
+}
+
+function stopRoomHeartbeat() {
+    if (heartbeatInterval) {
+        clearInterval(heartbeatInterval);
+        heartbeatInterval = null;
+    }
+}
+
+function startCleanupSweeper() {
+    // Run immediately and then every minute
+    cleanExpiredRooms();
+    setInterval(cleanExpiredRooms, 60000);
+}
+
+async function cleanExpiredRooms() {
+    try {
+        if (!database) return;
+        const tenMinutes = 10 * 60 * 1000;
+        const cutoff = Date.now() - tenMinutes;
+        const roomsRef = ref(database, 'rooms');
+        const q = query(roomsRef, orderByChild('lastActivity'), endAt(cutoff), limitToFirst(25));
+        const snap = await get(q);
+        if (!snap.exists()) return;
+        const rooms = snap.val();
+        const deletions = Object.keys(rooms || {}).map(roomId => remove(ref(database, `rooms/${roomId}`)).catch(() => {}));
+        await Promise.all(deletions);
+    } catch (e) {
+        console.warn('Cleanup sweep error:', e);
+    }
 }

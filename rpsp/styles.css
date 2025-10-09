@@ -122,6 +122,26 @@ h3 {
     background: #5a6268;
 }
 
+/* Player count toggle */
+.player-count-group {
+    display: inline-grid;
+    grid-auto-flow: column;
+    gap: 10px;
+}
+
+.player-count-btn {
+    width: 64px;
+    padding: 10px 0;
+    font-size: 18px;
+    line-height: 1;
+}
+
+.player-count-btn.active,
+.player-count-btn[aria-pressed="true"] {
+    background: #667eea;
+    color: #fff;
+}
+
 .room-info {
     background: #f8f9fa;
     padding: 20px;

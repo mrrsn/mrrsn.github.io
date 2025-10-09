@@ -197,7 +197,8 @@ async function createRoom() {
         if (!ok) return;
     }
     const name = document.getElementById('hostName').value.trim();
-    const playerCount = parseInt(document.getElementById('playerCount').value);
+    const playerCountBtn = document.querySelector('.player-count-btn.active');
+    const playerCount = playerCountBtn ? parseInt(playerCountBtn.dataset.count) : 2;
     const pointsToWin = parseInt(document.getElementById('pointsToWin').value);
     
     if (!name) {
@@ -846,6 +847,18 @@ document.getElementById('joinBtn').addEventListener('click', joinRoom);
 document.querySelectorAll('.back-btn').forEach(btn => {
     btn.addEventListener('click', () => {
         showScreen('setup');
+    });
+});
+
+// Player count button toggle handlers
+document.querySelectorAll('.player-count-btn').forEach(btn => {
+    btn.addEventListener('click', () => {
+        document.querySelectorAll('.player-count-btn').forEach(b => {
+            b.classList.remove('active');
+            b.setAttribute('aria-pressed', 'false');
+        });
+        btn.classList.add('active');
+        btn.setAttribute('aria-pressed', 'true');
     });
 });
 

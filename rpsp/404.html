@@ -4,7 +4,7 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
     <title>Rock Paper Scissors Plus</title>
-    <link rel="stylesheet" href="styles.css?v=fe5bc8a">
+    <link rel="stylesheet" href="styles.css?v=afb8753">
 </head>
 <body>
     <div class="container">
@@ -31,11 +31,11 @@
                 <input type="text" id="hostName" placeholder="Enter your name">
             </div>
             <div class="form-group">
-                <label for="playerCount">Number of Players:</label>
-                <select id="playerCount">
-                    <option value="2">2 Players</option>
-                    <option value="3">3 Players</option>
-                </select>
+                <label>Number of Players:</label>
+                <div id="playerCountGroup" class="player-count-group" role="group" aria-label="Number of players">
+                    <button type="button" class="btn player-count-btn active" data-count="2" aria-pressed="true">2</button>
+                    <button type="button" class="btn player-count-btn" data-count="3" aria-pressed="false">3</button>
+                </div>
             </div>
             <div class="form-group">
                 <label for="pointsToWin">Points to Win:</label>
@@ -133,6 +133,6 @@
     <footer class="site-footer" aria-label="Copyright">© 2025 Rob Morrison</footer>
 
     <!-- Firebase SDK -->
-    <script type="module" src="app.js?v=fe5bc8a"></script>
+    <script type="module" src="app.js?v=afb8753"></script>
 </body>
 </html>

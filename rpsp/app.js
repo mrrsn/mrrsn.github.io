@@ -933,20 +933,24 @@ function setConnectionStatus(state, text) {
     if (textEl) textEl.textContent = text;
 
     // Compact/icon-only behavior
-    if (state === 'online') {
-        // briefly show text, then switch to compact dot-only
-        el.classList.remove('compact');
-        setTimeout(() => {
-            // if still online, compactify
-            if (el.classList.contains('conn-status--online')) {
-                el.classList.add('compact');
-            }
-        }, 2500);
-    } else if (state === 'offline') {
-        // show compact with red X instead of dot
+    const isMobile = window.matchMedia && window.matchMedia('(max-width: 600px)').matches;
+    if (isMobile) {
+        // On mobile, always icon-only
         el.classList.add('compact');
     } else {
-        el.classList.remove('compact');
+        if (state === 'online') {
+            // briefly show text, then switch to compact dot-only
+            el.classList.remove('compact');
+            setTimeout(() => {
+                if (el.classList.contains('conn-status--online')) {
+                    el.classList.add('compact');
+                }
+            }, 2500);
+        } else if (state === 'offline') {
+            el.classList.add('compact');
+        } else {
+            el.classList.remove('compact');
+        }
     }
 }
 

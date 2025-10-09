@@ -1,0 +1,138 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Rock Paper Scissors Plus</title>
+    <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+    <div class="container">
+        <div id="connectionStatus" class="conn-status conn-status--connecting" title="Firebase connection status">
+            <span class="conn-dot"></span>
+            <span class="conn-text">Connecting…</span>
+        </div>
+        <h1>Rock Paper Scissors Plus</h1>
+        
+        <!-- Setup Screen -->
+        <div id="setupScreen" class="screen active">
+            <div class="setup-options">
+                <button id="createRoomBtn" class="btn btn-primary">Create Room</button>
+                <button id="joinRoomBtn" class="btn btn-secondary">Join Room</button>
+            </div>
+        </div>
+
+        <!-- Create Room Screen -->
+        <div id="createRoomScreen" class="screen">
+            <h2>Create Room</h2>
+            <div class="form-group">
+                <label for="hostName">Your Name:</label>
+                <input type="text" id="hostName" placeholder="Enter your name">
+            </div>
+            <div class="form-group">
+                <label for="playerCount">Number of Players:</label>
+                <select id="playerCount">
+                    <option value="2">2 Players</option>
+                    <option value="3">3 Players</option>
+                </select>
+            </div>
+            <div class="form-group">
+                <label for="pointsToWin">Points to Win:</label>
+                <input type="number" id="pointsToWin" min="1" max="20" value="5">
+            </div>
+            <button id="createBtn" class="btn btn-primary">Create</button>
+            <button class="btn btn-secondary back-btn">Back</button>
+        </div>
+
+        <!-- Join Room Screen -->
+        <div id="joinRoomScreen" class="screen">
+            <h2>Join Room</h2>
+            <div class="form-group">
+                <label>Room Code:</label>
+                <div id="codeEntry" class="choices" aria-label="Enter room code by choosing 4 symbols">
+                    <button class="choice-btn code-choice-btn" data-code="R" aria-label="Rock">✊</button>
+                    <button class="choice-btn code-choice-btn" data-code="P" aria-label="Paper">🖐️</button>
+                    <button class="choice-btn code-choice-btn" data-code="S" aria-label="Scissors">✌️</button>
+                </div>
+                <div id="codeDisplay" style="text-align:center; font-size: 28px; margin: 10px 0; min-height: 36px;">____</div>
+                <div style="text-align:center; margin-bottom: 10px;">
+                    <button id="codeClearBtn" class="btn btn-secondary" style="width:auto; padding: 8px 16px;">Clear</button>
+                </div>
+                <small style="display:block; text-align:center; color:#6c757d;">Tap 4 symbols to enter the room code</small>
+            </div>
+            <div class="form-group">
+                <label for="playerName">Your Name:</label>
+                <input type="text" id="playerName" placeholder="Enter your name">
+            </div>
+            <button id="joinBtn" class="btn btn-primary" disabled>Join</button>
+            <button class="btn btn-secondary back-btn">Back</button>
+        </div>
+
+        <!-- Waiting Room Screen -->
+        <div id="waitingRoomScreen" class="screen">
+            <h2>Waiting for Players</h2>
+            <div class="room-info">
+                <p><strong>Room Code:</strong><br><span id="displayRoomId" class="room-id"></span></p>
+                <p><strong>Players:</strong> <span id="currentPlayers">1</span>/<span id="maxPlayers">2</span></p>
+            </div>
+            <div id="playersList" class="players-list"></div>
+            <p class="info-text">Share the Room ID with your friends!</p>
+        </div>
+
+        <!-- Game Screen -->
+        <div id="gameScreen" class="screen">
+            <div class="game-header">
+                <h2><span class="round-label" aria-label="Round">R</span> <span id="roundNumber">1</span></h2>
+                <div class="scores" id="scoresDisplay"></div>
+            </div>
+            
+            <div id="choiceSection" class="choice-section">
+                <div class="choice-row">
+                    <span class="section-caption" aria-hidden="true">Choose</span>
+                    <div class="choices">
+                    <button class="choice-btn" data-choice="rock">
+                        <span class="choice-icon" aria-hidden="true">✊</span>
+                        <span class="choice-label">Rock</span>
+                    </button>
+                    <button class="choice-btn" data-choice="paper">
+                        <span class="choice-icon" aria-hidden="true">🖐️</span>
+                        <span class="choice-label">Paper</span>
+                    </button>
+                    <button class="choice-btn" data-choice="scissors">
+                        <span class="choice-icon" aria-hidden="true">✌️</span>
+                        <span class="choice-label">Scissors</span>
+                    </button>
+                    </div>
+                </div>
+                <p id="yourChoice" class="your-choice"></p>
+            </div>
+
+            <div id="waitingForPlayers" class="waiting-message" style="display: none;">
+                <p>Waiting…</p>
+                <div class="spinner"></div>
+            </div>
+
+            <div id="resultsSection" class="results-section" style="display: none;">
+                <h3>Round Results</h3>
+                <div id="roundResults" class="round-results"></div>
+            </div>
+
+            <div id="winnerSection" class="winner-section" style="display: none;">
+                <h2>🎉 Game Over! 🎉</h2>
+                <h3 id="winnerName"></h3>
+                <div id="finalScores" class="final-scores"></div>
+                <button id="playAgainBtn" class="btn btn-primary">Play Again</button>
+                <button id="backToMenuBtn" class="btn btn-secondary">Back to Menu</button>
+            </div>
+        </div>
+
+        <!-- Error Message -->
+        <div id="errorMessage" class="error-message"></div>
+    </div>
+
+    <footer class="site-footer" aria-label="Copyright">© 2025 Rob Morrison</footer>
+
+    <!-- Firebase SDK -->
+    <script type="module" src="app.js"></script>
+</body>
+</html>

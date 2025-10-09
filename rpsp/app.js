@@ -815,22 +815,11 @@ async function backToMenu() {
     
     if (currentRoom) {
         try {
-            // Check if game has ended (someone won)
-            const hasWinner = gameState && Object.values(gameState.players).some(p => p.score >= gameState.pointsToWin);
-            
-            if (hasWinner) {
-                // If game ended, check if this is the last player leaving
-                const remainingPlayers = Object.keys(gameState.players).filter(id => id !== currentPlayer);
-                
-                if (remainingPlayers.length === 0) {
-                    // Last player leaving, clean up the entire room
-                    await cleanupRoom(currentRoom);
-                } else {
-                    // Remove only this player
-                    await remove(ref(database, `rooms/${currentRoom}/players/${currentPlayer}`));
-                }
+            // If you're the last player in the room, delete the entire room; otherwise remove just you
+            const playersCount = gameState ? Object.keys(gameState.players || {}).length : 0;
+            if (playersCount <= 1) {
+                await cleanupRoom(currentRoom);
             } else {
-                // Game still in progress, just remove player
                 await remove(ref(database, `rooms/${currentRoom}/players/${currentPlayer}`));
             }
         } catch (error) {
@@ -1047,13 +1036,33 @@ async function cleanExpiredRooms() {
         const tenMinutes = 10 * 60 * 1000;
         const cutoff = Date.now() - tenMinutes;
         const roomsRef = ref(database, 'rooms');
-        const q = query(roomsRef, orderByChild('lastActivity'), endAt(cutoff), limitToFirst(25));
+    const q = query(roomsRef, orderByChild('lastActivity'), endAt(cutoff), limitToFirst(200));
         const snap = await get(q);
-        if (!snap.exists()) return;
+        if (!snap.exists()) {
+            // No expired rooms found
+            return;
+        }
         const rooms = snap.val();
-        const deletions = Object.keys(rooms || {}).map(roomId => remove(ref(database, `rooms/${roomId}`)).catch(() => {}));
-        await Promise.all(deletions);
+        const roomIds = Object.keys(rooms || {});
+        if (roomIds.length > 0) {
+            console.debug(`[sweeper] Removing ${roomIds.length} expired room(s) with lastActivity <= ${cutoff}`);
+        }
+        const results = await Promise.allSettled(roomIds.map(roomId => remove(ref(database, `rooms/${roomId}`))));
+        results.forEach((res, i) => {
+            const roomId = roomIds[i];
+            if (res.status === 'rejected') {
+                console.warn(`[sweeper] Failed to remove room ${roomId}:`, res.reason && res.reason.message ? res.reason.message : res.reason);
+            } else {
+                console.debug(`[sweeper] Removed room ${roomId}`);
+            }
+        });
     } catch (e) {
         console.warn('Cleanup sweep error:', e);
     }
+}
+
+// Expose a minimal debug helper in the console to trigger a sweep on demand
+// Usage in dev tools: rpsp.forceSweep()
+if (typeof window !== 'undefined') {
+    window.rpsp = Object.assign({}, window.rpsp || {}, { forceSweep: cleanExpiredRooms });
 }

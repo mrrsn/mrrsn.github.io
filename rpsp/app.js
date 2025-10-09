@@ -413,27 +413,37 @@ function showGameScreen() {
     });
     document.getElementById('yourChoice').textContent = '';
 
-        // Respect current player's ready state: if already chose, show waiting; otherwise show choice UI
-        const you = gameState && currentPlayer ? gameState.players?.[currentPlayer] : null;
-        const choiceSection = document.getElementById('choiceSection');
-        const waiting = document.getElementById('waitingForPlayers');
-        const results = document.getElementById('resultsSection');
-        const winner = document.getElementById('winnerSection');
+    // Respect current player's ready state and tiebreaker participation
+    const you = gameState && currentPlayer ? gameState.players?.[currentPlayer] : null;
+    const isTbActive = !!(gameState && gameState.tiebreakerActive && Array.isArray(gameState.tiebreaker));
+    const tbPlayers = isTbActive ? gameState.tiebreaker : [];
+    const youInTb = isTbActive ? tbPlayers.includes(currentPlayer) : true;
+    const choiceSection = document.getElementById('choiceSection');
+    const waiting = document.getElementById('waitingForPlayers');
+    const results = document.getElementById('resultsSection');
+    const winner = document.getElementById('winnerSection');
+    const waitingMsg = waiting ? waiting.querySelector('p') : null;
 
-        if (results) results.style.display = 'none';
-        if (winner) winner.style.display = 'none';
+    if (results) results.style.display = 'none';
+    if (winner) winner.style.display = 'none';
 
-        if (you && you.ready) {
-            if (choiceSection) choiceSection.style.display = 'none';
-            if (waiting) waiting.style.display = 'block';
-        } else {
-            if (choiceSection) choiceSection.style.display = 'block';
-            if (waiting) waiting.style.display = 'none';
-            // Clear prior visual selection when showing choices
-            document.querySelectorAll('.choice-btn').forEach(btn => btn.classList.remove('selected'));
-            const yourChoice = document.getElementById('yourChoice');
-            if (yourChoice) yourChoice.textContent = '';
-        }
+    if (isTbActive && !youInTb) {
+        // Not part of the tiebreaker: kindly ask to wait
+        if (choiceSection) choiceSection.style.display = 'none';
+        if (waiting) waiting.style.display = 'block';
+        if (waitingMsg) waitingMsg.textContent = 'Please wait while the tiebreaker is resolved…';
+    } else if (you && you.ready) {
+        if (choiceSection) choiceSection.style.display = 'none';
+        if (waiting) waiting.style.display = 'block';
+        if (waitingMsg) waitingMsg.textContent = 'Waiting…';
+    } else {
+        if (choiceSection) choiceSection.style.display = 'block';
+        if (waiting) waiting.style.display = 'none';
+        // Clear prior visual selection when showing choices
+        document.querySelectorAll('.choice-btn').forEach(btn => btn.classList.remove('selected'));
+        const yourChoice = document.getElementById('yourChoice');
+        if (yourChoice) yourChoice.textContent = '';
+    }
 }
 
 function updateGameDisplay() {
@@ -471,6 +481,15 @@ document.querySelectorAll('.choice-btn').forEach(btn => {
         // Only handle game choices when on the game screen
         if (!screens.game.classList.contains('active')) return;
         if (!currentRoom || !currentPlayer) return;
+        // During a tiebreaker, only participants can pick
+        const isTbActive = !!(gameState && gameState.tiebreakerActive && Array.isArray(gameState.tiebreaker));
+        if (isTbActive && !gameState.tiebreaker.includes(currentPlayer)) {
+            const waiting = document.getElementById('waitingForPlayers');
+            const waitingMsg = waiting ? waiting.querySelector('p') : null;
+            if (waiting) waiting.style.display = 'block';
+            if (waitingMsg) waitingMsg.textContent = 'Please wait while the tiebreaker is resolved…';
+            return;
+        }
         
         const choice = btn.dataset.choice;
         
@@ -523,14 +542,16 @@ if (clearBtn) {
 
 async function checkAllPlayersReady() {
     if (!gameState) return;
-    
-    const allReady = Object.values(gameState.players).every(p => p.ready);
+    const isTbActive = !!(gameState && gameState.tiebreakerActive && Array.isArray(gameState.tiebreaker));
+    const participantIds = isTbActive ? gameState.tiebreaker : Object.keys(gameState.players);
+    const allReady = participantIds.every(id => gameState.players[id]?.ready);
     
     if (allReady) {
         // Calculate results
         const choices = {};
-        Object.entries(gameState.players).forEach(([id, player]) => {
-            choices[id] = player.choice;
+        participantIds.forEach(id => {
+            const player = gameState.players[id];
+            choices[id] = player ? player.choice : null;
         });
         
         const result = determineWinner(choices);
@@ -583,7 +604,13 @@ async function processRoundResult(result, choices) {
                 });
             }
         } else if (result.type === 'tie') {
-            if (playerCount === 2) {
+            if (wasTiebreaker && gameState.tiebreaker && Array.isArray(gameState.tiebreaker)) {
+                // Tiebreaker tied again: no points, try again with same participants
+                updates['tiebreaker'] = [...gameState.tiebreaker];
+                updates['tiebreakerActive'] = false; // next round will flip to active
+                resultData.tiebreakerParticipants = [...gameState.tiebreaker];
+                resultData.message = 'Tiebreaker tied! Try again.';
+            } else if (playerCount === 2) {
                 // With only 2 players, a tie clears all points
                 Object.keys(gameState.players).forEach(playerId => {
                     updates[`players/${playerId}/score`] = 0;
@@ -713,7 +740,19 @@ async function resolveTiebreaker() {
             tiebreakerActive: true,
             lastActivity: serverTimestamp()
         });
-        
+        // Update local state and refresh UI
+        // Note: actual gameState will be refreshed via listener; this ensures immediate UI feedback
+        if (gameState) {
+            gameState.round += 1;
+            gameState.results = null;
+            gameState.tiebreakerActive = true;
+            Object.keys(gameState.players || {}).forEach(id => {
+                if (gameState.players[id]) {
+                    gameState.players[id].ready = false;
+                    gameState.players[id].choice = null;
+                }
+            });
+        }
         showGameScreen();
     } catch (error) {
         console.error('Error resolving tiebreaker:', error);
@@ -915,7 +954,28 @@ function setupRoomListener() {
         // Update display if in game
         if (screens.game.classList.contains('active')) {
             updateGameDisplay();
-            
+
+            // Keep choice/wait UI aligned to tiebreaker status
+            const isTbActive = !!(gameState && gameState.tiebreakerActive && Array.isArray(gameState.tiebreaker));
+            const tbPlayers = isTbActive ? gameState.tiebreaker : [];
+            const you = gameState.players && currentPlayer ? gameState.players[currentPlayer] : null;
+            const youInTb = isTbActive ? tbPlayers.includes(currentPlayer) : true;
+            const choiceSection = document.getElementById('choiceSection');
+            const waiting = document.getElementById('waitingForPlayers');
+            const waitingMsg = waiting ? waiting.querySelector('p') : null;
+            if (isTbActive && !youInTb) {
+                if (choiceSection) choiceSection.style.display = 'none';
+                if (waiting) waiting.style.display = 'block';
+                if (waitingMsg) waitingMsg.textContent = 'Please wait while the tiebreaker is resolved…';
+            } else if (you && you.ready) {
+                if (choiceSection) choiceSection.style.display = 'none';
+                if (waiting) waiting.style.display = 'block';
+                if (waitingMsg) waitingMsg.textContent = 'Waiting…';
+            } else {
+                if (choiceSection) choiceSection.style.display = 'block';
+                if (waiting) waiting.style.display = 'none';
+            }
+
             // Check if results are ready
             if (gameState.results && document.getElementById('resultsSection').style.display === 'none') {
                 displayRoundResults(gameState.results);

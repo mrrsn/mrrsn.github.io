@@ -12,6 +12,9 @@ const EMOJI_TEMPLATES = {
     scissors: '✌️'
 };
 
+// Room code length (number of symbols)
+const ROOM_CODE_LEN = 4;
+
 // Try to initialize Firebase if config is valid
 async function initializeFirebase() {
     try {
@@ -92,10 +95,10 @@ function showError(message) {
 }
 
 function generateRoomId() {
-    // Generate a 4-symbol code using R, P, S
+    // Generate a code using R, P, S of length ROOM_CODE_LEN
     const symbols = ['R', 'P', 'S'];
     let code = '';
-    for (let i = 0; i < 4; i++) {
+    for (let i = 0; i < ROOM_CODE_LEN; i++) {
         code += symbols[Math.floor(Math.random() * symbols.length)];
     }
     return code;
@@ -118,10 +121,10 @@ function renderJoinCode() {
     if (!disp) return;
     const map = { R: '✊', P: '🖐️', S: '✌️' };
     const filled = joinCodeBuffer.map(c => map[c]).join('');
-    const blanks = '_'.repeat(Math.max(0, 4 - joinCodeBuffer.length));
+    const blanks = '_'.repeat(Math.max(0, ROOM_CODE_LEN - joinCodeBuffer.length));
     disp.textContent = filled + blanks;
     const joinBtn = document.getElementById('joinBtn');
-    if (joinBtn) joinBtn.disabled = joinCodeBuffer.length !== 4;
+    if (joinBtn) joinBtn.disabled = joinCodeBuffer.length !== ROOM_CODE_LEN;
 }
 
 function getEnteredRpsCode() {
@@ -207,7 +210,21 @@ async function createRoom() {
         return;
     }
     
-    const roomId = generateRoomId();
+    // Generate a room ID and avoid collisions
+    let roomId = generateRoomId();
+    try {
+        for (let attempts = 0; attempts < 50; attempts++) {
+            const exists = await get(child(ref(database), `rooms/${roomId}`));
+            if (!exists.exists()) break;
+            roomId = generateRoomId();
+            if (attempts === 49) {
+                showError('Unable to generate a room code. Please try again.');
+                return;
+            }
+        }
+    } catch (_) {
+        // If check fails, proceed with current roomId
+    }
     const playerId = Date.now().toString();
     
     const roomData = {
@@ -250,8 +267,8 @@ async function joinRoom() {
     const roomId = getEnteredRpsCode();
     const name = document.getElementById('playerName').value.trim();
     
-    if (!roomId || roomId.length !== 4 || !name) {
-        showError('Please enter a 4-symbol room code and your name');
+    if (!roomId || roomId.length !== ROOM_CODE_LEN || !name) {
+        showError(`Please enter a ${ROOM_CODE_LEN}-symbol room code and your name`);
         return;
     }
     
@@ -448,7 +465,7 @@ document.querySelectorAll('.choice-btn').forEach(btn => {
 // Code entry buttons on Join screen
 document.querySelectorAll('.code-choice-btn').forEach(btn => {
     btn.addEventListener('click', () => {
-        if (joinCodeBuffer.length >= 4) return;
+        if (joinCodeBuffer.length >= ROOM_CODE_LEN) return;
         const code = btn.dataset.code;
         if (code === 'R' || code === 'P' || code === 'S') {
             joinCodeBuffer.push(code);
@@ -919,6 +936,19 @@ function setConnectionStatus(state, text) {
         el.classList.remove('compact');
     }
 }
+
+// Prevent double-tap zoom on quick repeated button taps (for iOS Safari)
+let __lastTouchEndTs = 0;
+document.addEventListener('touchend', (e) => {
+    const target = e.target && e.target.closest && e.target.closest('button, .choice-btn, .code-choice-btn');
+    if (!target) return;
+    const now = Date.now();
+    if (now - __lastTouchEndTs < 400) {
+        // Prevent zoom
+        e.preventDefault();
+    }
+    __lastTouchEndTs = now;
+}, { passive: false });
 
 // Advance round atomically so only one client progresses the game
 async function advanceRoundTransaction(roomId) {

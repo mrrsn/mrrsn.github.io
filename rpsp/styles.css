@@ -2,6 +2,8 @@
     margin: 0;
     padding: 0;
     box-sizing: border-box;
+    -webkit-tap-highlight-color: transparent;
+    user-select: none;
 }
 
 body {
@@ -79,6 +81,7 @@ h3 {
     border-radius: 8px;
     font-size: 16px;
     transition: border-color 0.3s;
+    user-select: text; /* allow selection in fields */
 }
 
 .form-group input:focus,
@@ -555,21 +558,30 @@ h3 {
         font-size: 13px;
     }
 
-    /* Compact scores in a grid to save vertical space */
+    /* Compact scores: exactly 3 across in one row, like the play buttons */
     .scores {
         display: grid;
-        grid-template-columns: repeat(auto-fit, minmax(100px, 1fr));
-        gap: 8px;
+        grid-template-columns: repeat(3, 1fr);
+        gap: 10px;
         margin-top: 12px;
+        align-items: stretch;
     }
 
     .score-item {
         margin: 0;
-        padding: 10px;
+        padding: 8px;
+        border-radius: 12px;
+        border: 2px solid #e9ecef;
+        background: #fff;
+    }
+
+    .score-item .player-name {
+        font-size: 12px;
+        margin-bottom: 4px;
     }
 
     .score-item .player-score {
-        font-size: 24px;
+        font-size: 22px;
     }
 
     /* Slightly smaller on mobile for join code buttons */

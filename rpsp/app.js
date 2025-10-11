@@ -1211,9 +1211,9 @@ if (shareBtn) {
             url.hash = '';
             url.searchParams.set('room', code);
             const link = url.toString();
-            const text = `Join my Rock Paper Scissors Plus game: ${link}`;
             if (navigator.share && typeof navigator.share === 'function') {
-                await navigator.share({ title: 'Rock Paper Scissors Plus', text, url: link });
+                // Pass only the URL (some share targets duplicate content if both text and url provided)
+                await navigator.share({ title: 'Rock Paper Scissors Plus', url: link });
             } else if (navigator.clipboard && navigator.clipboard.writeText) {
                 await navigator.clipboard.writeText(link);
                 showError('Invite link copied to clipboard!');

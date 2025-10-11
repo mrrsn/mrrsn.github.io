@@ -109,6 +109,11 @@ function rpsCodeToEmoji(code) {
     return code.split('').map(c => map[c] || '').join('');
 }
 
+function emojiToRpsCode(emojiStr) {
+    const map = { '✊': 'R', '🖐️': 'P', '✌️': 'S' };
+    return emojiStr.split('').map(e => map[e] || '').join('');
+}
+
 function getChoiceIcon(choice) {
     const emoji = EMOJI_TEMPLATES[choice];
     return emoji ? `<span aria-hidden="true" style="font-size: 1.8rem; line-height: 1">${emoji}</span>` : '';
@@ -129,6 +134,16 @@ function renderJoinCode() {
 
 function getEnteredRpsCode() {
     return joinCodeBuffer.join('');
+}
+
+function setJoinCodeFromString(code) {
+    joinCodeBuffer = [];
+    const valid = ['R', 'P', 'S'];
+    for (let i = 0; i < Math.min(code.length, ROOM_CODE_LEN); i++) {
+        const c = code[i].toUpperCase();
+        if (valid.includes(c)) joinCodeBuffer.push(c);
+    }
+    renderJoinCode();
 }
 
 // Game logic
@@ -332,7 +347,12 @@ async function joinRoom() {
 
 function joinWaitingRoom(roomId, playerId) {
     showScreen('waitingRoom');
-    document.getElementById('displayRoomId').textContent = rpsCodeToEmoji(roomId);
+    const disp = document.getElementById('displayRoomId');
+    if (disp) {
+        disp.textContent = rpsCodeToEmoji(roomId);
+        // Store canonical room code to avoid emoji parsing issues
+        disp.dataset.code = roomId;
+    }
     
     // Listen for room updates
     roomListener = onValue(ref(database, `rooms/${roomId}`), (snapshot) => {
@@ -1003,6 +1023,21 @@ function setupRoomListener() {
         conn.addEventListener('mouseleave', () => conn.classList.add('minimized'));
         conn.addEventListener('click', () => conn.classList.toggle('minimized'));
     }
+
+    // Deep link: ?room=RRRR or emojis
+    try {
+        const url = new URL(window.location.href);
+        const roomParam = url.searchParams.get('room');
+        if (roomParam) {
+            const code = /^[RPS]{1,4}$/i.test(roomParam)
+                ? roomParam.toUpperCase()
+                : emojiToRpsCode(roomParam);
+            if (code && code.length === ROOM_CODE_LEN) {
+                showScreen('joinRoom');
+                setJoinCodeFromString(code);
+            }
+        }
+    } catch (_) {}
 })();
 
 // Connection status helpers
@@ -1147,4 +1182,43 @@ async function cleanExpiredRooms() {
 // Usage in dev tools: rpsp.forceSweep()
 if (typeof window !== 'undefined') {
     window.rpsp = Object.assign({}, window.rpsp || {}, { forceSweep: cleanExpiredRooms });
+}
+
+// Share invite button handler
+const shareBtn = document.getElementById('shareInviteBtn');
+if (shareBtn) {
+    shareBtn.addEventListener('click', async () => {
+        try {
+            const disp = document.getElementById('displayRoomId');
+            const datasetCode = disp && disp.dataset ? disp.dataset.code : '';
+            let code = datasetCode;
+            if (!code) {
+                // Fallback to parsing text (handles older sessions), normalize variation selectors
+                const codeEmoji = (disp?.textContent || '').replace(/\uFE0F/g, '').trim();
+                code = emojiToRpsCode(codeEmoji);
+            }
+            if (!code || code.length !== ROOM_CODE_LEN) {
+                showError('No room code to share yet.');
+                return;
+            }
+            const url = new URL(window.location.href);
+            // Ensure root app URL (strip any query/hash)
+            url.search = '';
+            url.hash = '';
+            url.searchParams.set('room', code);
+            const link = url.toString();
+            const text = `Join my Rock Paper Scissors Plus game: ${link}`;
+            if (navigator.share && typeof navigator.share === 'function') {
+                await navigator.share({ title: 'Rock Paper Scissors Plus', text, url: link });
+            } else if (navigator.clipboard && navigator.clipboard.writeText) {
+                await navigator.clipboard.writeText(link);
+                showError('Invite link copied to clipboard!');
+            } else {
+                prompt('Copy this invite link:', link);
+            }
+        } catch (e) {
+            console.error('Share failed:', e);
+            showError('Failed to share invite');
+        }
+    });
 }

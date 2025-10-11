@@ -4,7 +4,7 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
     <title>Rock Paper Scissors Plus</title>
-    <link rel="stylesheet" href="styles.css?v=f4a1e91">
+    <link rel="stylesheet" href="styles.css?v=0b29163">
 </head>
 <body>
     <div class="container">
@@ -75,6 +75,9 @@
             <div class="room-info">
                 <p><strong>Room Code:</strong><br><span id="displayRoomId" class="room-id"></span></p>
                 <p><strong>Players:</strong> <span id="currentPlayers">1</span>/<span id="maxPlayers">2</span></p>
+                    <div style="margin-top:8px;">
+                        <button id="shareInviteBtn" class="btn btn-secondary" type="button">Share Invite</button>
+                    </div>
             </div>
             <div id="playersList" class="players-list"></div>
             <p class="info-text">Share the Room ID with your friends!</p>
@@ -133,6 +136,6 @@
     <footer class="site-footer" aria-label="Copyright">© 2025 Rob Morrison</footer>
 
     <!-- Firebase SDK -->
-    <script type="module" src="app.js?v=f4a1e91"></script>
+    <script type="module" src="app.js?v=0b29163"></script>
 </body>
 </html>

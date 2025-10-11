@@ -130,6 +130,8 @@ function renderJoinCode() {
     disp.textContent = filled + blanks;
     const joinBtn = document.getElementById('joinBtn');
     if (joinBtn) joinBtn.disabled = joinCodeBuffer.length !== ROOM_CODE_LEN;
+    const hint = document.getElementById('codeHint');
+    if (hint) hint.style.display = joinCodeBuffer.length === ROOM_CODE_LEN ? 'none' : 'block';
 }
 
 function getEnteredRpsCode() {
@@ -1035,6 +1037,8 @@ function setupRoomListener() {
             if (code && code.length === ROOM_CODE_LEN) {
                 showScreen('joinRoom');
                 setJoinCodeFromString(code);
+                const hint = document.getElementById('codeHint');
+                if (hint) hint.style.display = 'none';
             }
         }
     } catch (_) {}

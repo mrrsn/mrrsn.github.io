@@ -15,7 +15,11 @@ html, body, .game, .leds, .led, .instructions, .mute-btn, #status {
 .title{font-family:"Comfortaa",system-ui,-apple-system,"Segoe UI",Arial,sans-serif;font-size:48px;font-weight:800;letter-spacing:0.5px;margin-bottom:10px;text-align:center;color:rgb(0,255,0);text-shadow:0 6px 22px rgba(0,0,0,0.55)}
 .game{width:760px;max-width:95vw;padding:24px;background:rgba(255,255,255,0.03);border-radius:12px;box-shadow:0 6px 30px rgba(0,0,0,0.6)}
 .leds{position:relative;width:360px;height:360px;margin:18px auto}
-.led{position:absolute;left:50%;top:50%;width:48px;height:48px;border-radius:50%;background:#001122;display:flex;align-items:center;justify-content:center;color:#eaf2ff;font-weight:800;font-size:18px;line-height:1;box-shadow:0 4px 12px rgba(0,0,0,0.6);transform:translate(-50%,-50%); will-change: background-color; contain: paint}
+.led{position:absolute;left:50%;top:50%;width:48px;height:48px;border-radius:50%;background:#001122;display:flex;align-items:center;justify-content:center;color:#eaf2ff;font-weight:800;font-size:18px;line-height:1;box-shadow:0 4px 12px rgba(0,0,0,0.6);transform:translate(-50%,-50%); will-change: background-color; contain: paint; overflow:hidden}
+.led__layer{position:absolute;inset:0;border-radius:50%;opacity:0;pointer-events:none;will-change:opacity}
+.led__layer--mid{background:#ffffff}
+.led__layer--on{background:#00ff00}
+.led__symbol{position:relative;z-index:2;pointer-events:none}
 .led.a11y-active{box-shadow:0 0 0 8px rgba(255,255,255,0.85), 0 4px 12px rgba(0,0,0,0.6); z-index:2}
 .controls{display:flex;gap:12px;align-items:center;flex-direction:column;margin-top:16px}
 .center{display:flex;align-items:center;justify-content:center}

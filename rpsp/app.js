@@ -62,6 +62,24 @@ async function initializeFirebase() {
     }
 }
 
+// Persisted session helpers
+const SESSION_KEY = 'rpsp_session_v1';
+function saveSession() {
+    try {
+        if (currentRoom && currentPlayer) {
+            localStorage.setItem(SESSION_KEY, JSON.stringify({ roomId: currentRoom, playerId: currentPlayer }));
+        }
+    } catch (_) {}
+}
+function clearSession() {
+    try { localStorage.removeItem(SESSION_KEY); } catch (_) {}
+}
+function getSavedSession() {
+    try {
+        const raw = localStorage.getItem(SESSION_KEY);
+        return raw ? JSON.parse(raw) : null;
+    } catch (_) { return null; }
+}
 // Game state
 let currentRoom = null;
 let currentPlayer = null;
@@ -69,6 +87,7 @@ let gameState = null;
 let roomListener = null;
 let heartbeatInterval = null;
 let cleanupTimeoutId = null;
+let suppressAutoNav = false; // when true, ignore automatic screen changes to non-setup screens
 
 // DOM elements
 const screens = {
@@ -81,6 +100,7 @@ const screens = {
 
 // Utility functions
 function showScreen(screenName) {
+    if (suppressAutoNav && screenName !== 'setup') return;
     Object.values(screens).forEach(screen => screen.classList.remove('active'));
     screens[screenName].classList.add('active');
 }
@@ -93,7 +113,6 @@ function showError(message) {
         errorDiv.classList.remove('show');
     }, 5000);
 }
-
 function generateRoomId() {
     // Generate a code using R, P, S of length ROOM_CODE_LEN
     const symbols = ['R', 'P', 'S'];
@@ -168,8 +187,8 @@ function determineWinner(choices) {
     
     players.forEach(player => {
         const choice = choices[player];
-        let wins = 0;
-        let losses = 0;
+    let wins = 0;
+    let losses = 0;
         
         players.forEach(opponent => {
             if (player !== opponent) {
@@ -209,6 +228,8 @@ function beats(choice1, choice2) {
 
 // Room management
 async function createRoom() {
+    // entering a create flow is a user action; allow navigation again
+    suppressAutoNav = false;
     if (!database) {
         const ok = await initializeFirebase();
         if (!ok) return;
@@ -267,6 +288,7 @@ async function createRoom() {
                 await update(roomRef, { lastActivity: serverTimestamp() }).catch(() => {});
                 currentRoom = roomId;
                 currentPlayer = playerId;
+                saveSession();
                 joinWaitingRoom(roomId, playerId);
                 startRoomHeartbeat(roomId);
             }
@@ -281,6 +303,8 @@ async function createRoom() {
 }
 
 async function joinRoom() {
+    // entering a join flow is a user action; allow navigation again
+    suppressAutoNav = false;
     if (!database) {
         const ok = await initializeFirebase();
         if (!ok) return;
@@ -339,6 +363,7 @@ async function joinRoom() {
 
         currentRoom = roomId;
         currentPlayer = playerId;
+        saveSession();
         joinWaitingRoom(roomId, playerId);
         startRoomHeartbeat(roomId);
     } catch (error) {
@@ -366,6 +391,8 @@ function joinWaitingRoom(roomId, playerId) {
         
         const room = snapshot.val();
         gameState = room;
+    // keep session current
+    saveSession();
         
         const playerCount = Object.keys(room.players).length;
         document.getElementById('currentPlayers').textContent = playerCount;
@@ -386,7 +413,7 @@ function joinWaitingRoom(roomId, playerId) {
             const winnerId = room.winner.id;
             const winnerPlayer = room.players[winnerId];
             if (winnerPlayer) {
-                // Ensure we're on the game screen
+                // Ensure we're on the game screen (unless suppressed)
                 showScreen('game');
                 showWinner(winnerId, winnerPlayer);
                 return;
@@ -803,6 +830,9 @@ function showWinner(playerId, player) {
     document.getElementById('winnerSection').style.display = 'block';
     
     document.getElementById('winnerName').textContent = `${player.name} Wins!`;
+
+    // Game is finished: expire saved local session so refresh won't auto-rejoin
+    try { clearSession(); } catch (_) {}
     
     const finalScoresDiv = document.getElementById('finalScores');
     finalScoresDiv.innerHTML = '';
@@ -890,6 +920,15 @@ document.getElementById('backToMenuBtn').addEventListener('click', () => {
     backToMenu();
 });
 
+// Home button: keep joined but return to setup; block auto-nav until user acts
+const homeBtn = document.getElementById('homeBtn');
+if (homeBtn) {
+    homeBtn.addEventListener('click', () => {
+        suppressAutoNav = true;
+        showScreen('setup');
+    });
+}
+
 async function backToMenu() {
     if (roomListener) {
         roomListener();
@@ -914,16 +953,19 @@ async function backToMenu() {
     currentPlayer = null;
     gameState = null;
     stopRoomHeartbeat();
+    clearSession();
     
     showScreen('setup');
 }
 
 // Event listeners for navigation
 document.getElementById('createRoomBtn').addEventListener('click', () => {
+    suppressAutoNav = false;
     showScreen('createRoom');
 });
 
 document.getElementById('joinRoomBtn').addEventListener('click', () => {
+    suppressAutoNav = false;
     showScreen('joinRoom');
     joinCodeBuffer = [];
     renderJoinCode();
@@ -934,6 +976,7 @@ document.getElementById('joinBtn').addEventListener('click', joinRoom);
 
 document.querySelectorAll('.back-btn').forEach(btn => {
     btn.addEventListener('click', () => {
+        suppressAutoNav = false;
         showScreen('setup');
     });
 });
@@ -1026,10 +1069,11 @@ function setupRoomListener() {
         conn.addEventListener('click', () => conn.classList.toggle('minimized'));
     }
 
-    // Deep link: ?room=RRRR or emojis
+    // Deep link: ?room=RRRR or emojis; or auto-rejoin saved session
     try {
         const url = new URL(window.location.href);
         const roomParam = url.searchParams.get('room');
+        let handledDeepLink = false;
         if (roomParam) {
             const code = /^[RPS]{1,4}$/i.test(roomParam)
                 ? roomParam.toUpperCase()
@@ -1039,6 +1083,69 @@ function setupRoomListener() {
                 setJoinCodeFromString(code);
                 const hint = document.getElementById('codeHint');
                 if (hint) hint.style.display = 'none';
+                handledDeepLink = true;
+            }
+        }
+        if (!handledDeepLink) {
+            const saved = getSavedSession();
+            if (saved && saved.roomId && saved.playerId) {
+                try {
+                    const snap = await get(ref(database, `rooms/${saved.roomId}`));
+                    if (snap.exists()) {
+                        const room = snap.val();
+                        if (room.players && room.players[saved.playerId]) {
+                            currentRoom = saved.roomId;
+                            currentPlayer = saved.playerId;
+                            joinWaitingRoom(currentRoom, currentPlayer);
+                            startRoomHeartbeat(currentRoom);
+                        }
+                    }
+                } catch (_) {}
+            }
+        }
+    } catch (_) {}
+    // Deep link: ?room=RRRR or emojis; or auto-rejoin saved session
+    try {
+        const url = new URL(window.location.href);
+        const roomParam = url.searchParams.get('room');
+        let handled = false;
+        if (roomParam) {
+            const code = /^[RPS]{1,4}$/i.test(roomParam)
+                ? roomParam.toUpperCase()
+                : emojiToRpsCode(roomParam);
+            if (code && code.length === ROOM_CODE_LEN) {
+                showScreen('joinRoom');
+                setJoinCodeFromString(code);
+                const hint = document.getElementById('codeHint');
+                if (hint) hint.style.display = 'none';
+                handled = true;
+            }
+        }
+        if (!handled) {
+            const saved = getSavedSession();
+            if (saved && saved.roomId && saved.playerId) {
+                try {
+                    const snap = await get(ref(database, `rooms/${saved.roomId}`));
+                    if (snap.exists()) {
+                        const room = snap.val();
+                        if (room.players && room.players[saved.playerId]) {
+                            currentRoom = saved.roomId;
+                            currentPlayer = saved.playerId;
+                            joinWaitingRoom(currentRoom, currentPlayer);
+                            startRoomHeartbeat(currentRoom);
+                        } else {
+                            // Player missing from room; clear stale session
+                            clearSession();
+                        }
+                    } else {
+                        // Room missing; clear stale session
+                        clearSession();
+                    }
+                } catch (e) {
+                    console.debug('Auto-rejoin skipped:', e?.message || e);
+                    // On any error, clear to avoid retry loops
+                    try { clearSession(); } catch (_) {}
+                }
             }
         }
     } catch (_) {}

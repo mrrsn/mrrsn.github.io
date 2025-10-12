@@ -432,6 +432,12 @@ function joinWaitingRoom(roomId, playerId) {
             }
             // Always refresh scores while playing
             updateGameDisplay();
+        } else if (room.status === 'finished') {
+            // Defensive: keep waiting/results hidden when finished but no winner object yet
+            const waitingEl = document.getElementById('waitingForPlayers');
+            if (waitingEl) waitingEl.style.display = 'none';
+            const resultsEl = document.getElementById('resultsSection');
+            if (resultsEl) resultsEl.style.display = 'none';
         }
     });
 }
@@ -456,6 +462,9 @@ function showGameScreen() {
     document.getElementById('waitingForPlayers').style.display = 'none';
     document.getElementById('resultsSection').style.display = 'none';
     document.getElementById('winnerSection').style.display = 'none';
+    // Ensure score tiles are visible for active games
+    const scoresEl = document.getElementById('scoresDisplay');
+    if (scoresEl) scoresEl.style.display = '';
     
     document.querySelectorAll('.choice-btn').forEach(btn => {
         btn.classList.remove('selected');
@@ -826,6 +835,13 @@ async function nextRound() {
 }
 
 function showWinner(playerId, player) {
+    // Hide any waiting/choice/results UI, show final results
+    const waitingEl = document.getElementById('waitingForPlayers');
+    if (waitingEl) waitingEl.style.display = 'none';
+    const choiceEl = document.getElementById('choiceSection');
+    if (choiceEl) choiceEl.style.display = 'none';
+    const scoresEl = document.getElementById('scoresDisplay');
+    if (scoresEl) scoresEl.style.display = 'none';
     document.getElementById('resultsSection').style.display = 'none';
     document.getElementById('winnerSection').style.display = 'block';
     
@@ -1068,6 +1084,13 @@ function setupRoomListener() {
         conn.addEventListener('mouseleave', () => conn.classList.add('minimized'));
         conn.addEventListener('click', () => conn.classList.toggle('minimized'));
     }
+
+    // Register service worker (PWA)
+    try {
+        if ('serviceWorker' in navigator) {
+            navigator.serviceWorker.register('./sw.js').catch(() => {});
+        }
+    } catch (_) {}
 
     // Deep link: ?room=RRRR or emojis; or auto-rejoin saved session
     try {

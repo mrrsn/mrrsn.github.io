@@ -413,9 +413,12 @@ function joinWaitingRoom(roomId, playerId) {
             const winnerId = room.winner.id;
             const winnerPlayer = room.players[winnerId];
             if (winnerPlayer) {
-                // Ensure we're on the game screen (unless suppressed)
+                // Winner announcement overrides navigation suppression
+                const wasSuppressed = suppressAutoNav;
+                suppressAutoNav = false;
                 showScreen('game');
                 showWinner(winnerId, winnerPlayer);
+                suppressAutoNav = wasSuppressed;
                 return;
             }
         }

@@ -850,8 +850,8 @@ function showWinner(playerId, player) {
     
     document.getElementById('winnerName').textContent = `${player.name} Wins!`;
 
-    // Game is finished: expire saved local session so refresh won't auto-rejoin
-    try { clearSession(); } catch (_) {}
+    // Keep session active so refresh maintains access to finished game
+    // Session will be cleared only when user hits back button or room expires
     
     const finalScoresDiv = document.getElementById('finalScores');
     finalScoresDiv.innerHTML = '';
@@ -1024,6 +1024,8 @@ function setupRoomListener() {
         }
         
         gameState = snapshot.val();
+        // keep session current
+        saveSession();
         
         // If game finished, show winner for all players
         if (gameState.status === 'finished' && gameState.winner) {
@@ -1095,41 +1097,6 @@ function setupRoomListener() {
         }
     } catch (_) {}
 
-    // Deep link: ?room=RRRR or emojis; or auto-rejoin saved session
-    try {
-        const url = new URL(window.location.href);
-        const roomParam = url.searchParams.get('room');
-        let handledDeepLink = false;
-        if (roomParam) {
-            const code = /^[RPS]{1,4}$/i.test(roomParam)
-                ? roomParam.toUpperCase()
-                : emojiToRpsCode(roomParam);
-            if (code && code.length === ROOM_CODE_LEN) {
-                showScreen('joinRoom');
-                setJoinCodeFromString(code);
-                const hint = document.getElementById('codeHint');
-                if (hint) hint.style.display = 'none';
-                handledDeepLink = true;
-            }
-        }
-        if (!handledDeepLink) {
-            const saved = getSavedSession();
-            if (saved && saved.roomId && saved.playerId) {
-                try {
-                    const snap = await get(ref(database, `rooms/${saved.roomId}`));
-                    if (snap.exists()) {
-                        const room = snap.val();
-                        if (room.players && room.players[saved.playerId]) {
-                            currentRoom = saved.roomId;
-                            currentPlayer = saved.playerId;
-                            joinWaitingRoom(currentRoom, currentPlayer);
-                            startRoomHeartbeat(currentRoom);
-                        }
-                    }
-                } catch (_) {}
-            }
-        }
-    } catch (_) {}
     // Deep link: ?room=RRRR or emojis; or auto-rejoin saved session
     try {
         const url = new URL(window.location.href);
